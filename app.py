@@ -6,6 +6,7 @@ import gradio as gr
 import numpy as np
 from PIL import Image
 import random
+import time
 from db import compute_elo_scores, get_all_votes
 
 # Configure logging
@@ -54,6 +55,8 @@ def select_new_image():
     image_paths = load_images_from_directory("data/resized-original-images")
     last_image_path = None
     max_attempts = 10
+    
+    random.seed(time.time())
 
     for _ in range(max_attempts):
         available_images = [path for path in image_paths if path != last_image_path]
