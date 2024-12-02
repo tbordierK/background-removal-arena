@@ -52,7 +52,7 @@ def update_rankings_table():
 
 def select_new_image():
     """Select a new image and its segmented versions."""
-    image_paths = load_images_from_directory("data/resized-original-images")
+    image_paths = load_images_from_directory("data/web-original-images")
     last_image_path = None
     max_attempts = 10
     
@@ -70,10 +70,10 @@ def select_new_image():
         
         image_filename = os.path.splitext(os.path.basename(random_image_path))[0] + ".png"
         segmented_image_paths = {
-            "Photoroom": os.path.join("data/processed/photoroom", image_filename),
+            "Photoroom": os.path.join("data/resized/photoroom", image_filename),
             #"Clipdrop": os.path.join("data/processed/clipdrop", image_filename),
-            "RemoveBG": os.path.join("data/processed/removebg", image_filename),
-            "BRIA RMBG 2.0": os.path.join("data/processed/bria", image_filename)
+            "RemoveBG": os.path.join("data/resized/removebg", image_filename),
+            "BRIA RMBG 2.0": os.path.join("data/resized/bria", image_filename)
         }
         
         try:
@@ -107,14 +107,15 @@ def get_notice_markdown():
 
     ## 👇 Test now!
     """
+
 def compute_mask_difference(segmented_a, segmented_b):
     """Compute the absolute difference between two image masks."""
     mask_a = np.asarray(segmented_a)
     mask_b = np.asarray(segmented_b)
 
-    # Set transparent pixels to zero and compute the sum in one step
-    mask_a_1d = np.where(mask_a[..., 3] == 0, 0, np.sum(mask_a[..., :3], axis=-1))
-    mask_b_1d = np.where(mask_b[..., 3] == 0, 0, np.sum(mask_b[..., :3], axis=-1))
+    # Create a binary mask where non-transparent pixels are marked as 1
+    mask_a_1d = np.where(mask_a[..., 3] != 0, 1, 0)
+    mask_b_1d = np.where(mask_b[..., 3] != 0, 1, 0)
 
     # Compute the absolute difference between the masks
     return np.abs(mask_a_1d - mask_b_1d)
