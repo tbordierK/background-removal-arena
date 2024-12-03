@@ -7,7 +7,7 @@ import uuid
 from rating_systems import compute_elo
 
 
-DATABASE_URL = "sqlite:///./data/votes.db"  # Example with SQLite, replace with PostgreSQL for production
+DATABASE_URL = "sqlite:///./data/newvotes.db"  # Example with SQLite, replace with PostgreSQL for production
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

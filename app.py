@@ -6,7 +6,7 @@ import gradio as gr
 import numpy as np
 from PIL import Image
 import random
-from db import compute_elo_scores, get_all_votes
+from db import compute_elo_scores, get_all_votes, add_vote
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -100,8 +100,7 @@ def select_new_image():
             model_b_output_image = segmented_images[model_b_index]
             model_a_name = segmented_sources[model_a_index]
             model_b_name = segmented_sources[model_b_index]
-            return (sample['original_image'], input_image, model_a_output_image, model_a_output_image,
-                    model_b_output_image, model_b_output_image, model_a_name, model_b_name)
+            return sample['original_filename'], input_image, model_a_output_image, model_b_output_image, model_a_name, model_b_name
         except Exception as e:
             logging.error("Error processing images: %s. Resampling another image.", str(e))
             last_image_index = random_index
@@ -146,13 +145,10 @@ def gradio_interface():
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
 
-                (fpath_input, input_image, fpath_a, segmented_a, fpath_b, segmented_b,
-                 a_name, b_name) = select_new_image()
+                filname, input_image, segmented_a, segmented_b, a_name, b_name = select_new_image()
                 model_a_name = gr.State(a_name)
                 model_b_name = gr.State(b_name)
-                fpath_input = gr.State(fpath_input)
-                fpath_a = gr.State(fpath_a)
-                fpath_b = gr.State(fpath_b)
+                fpath_input = gr.State(filname)
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
@@ -186,60 +182,54 @@ def gradio_interface():
 
                 
                 vote_a_btn.click(
-                    fn=lambda: vote_for_model("model_a", (fpath_input, fpath_a, fpath_b), model_a_name, model_b_name),
+                    fn=lambda: vote_for_model("model_a", fpath_input, model_a_name, model_b_name),
                     outputs=[
-                        fpath_input, input_image_display, fpath_a, image_a_display, fpath_b, image_b_display, model_a_name, model_b_name, notice_markdown
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
                     ]
                 )
                 vote_b_btn.click(
-                    fn=lambda: vote_for_model("model_b", (fpath_input, fpath_a, fpath_b), model_a_name, model_b_name),
+                    fn=lambda: vote_for_model("model_b",fpath_input, model_a_name, model_b_name),
                     outputs=[
-                        fpath_input, input_image_display, fpath_a, image_a_display, fpath_b, image_b_display, model_a_name, model_b_name, notice_markdown
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
                     ]
                 )
                 vote_tie.click(
-                    fn=lambda: vote_for_model("tie", (fpath_input, fpath_a, fpath_b), model_a_name, model_b_name),
+                    fn=lambda: vote_for_model("tie", fpath_input, model_a_name, model_b_name),
                     outputs=[
-                        fpath_input, input_image_display, fpath_a, image_a_display, fpath_b, image_b_display, model_a_name, model_b_name, notice_markdown
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
                     ]
                 )
             
-                def vote_for_model(choice, fpaths, model_a_name, model_b_name):
+                def vote_for_model(choice, original_filename, model_a_name, model_b_name):
                     """Submit a vote for a model and return updated images and model names."""
                     logging.info("Voting for model: %s", choice)
-
                     vote_data = {
-                        "image_id": fpaths[0].value,
+                        "image_id": original_filename.value,
                         "model_a": model_a_name.value,
                         "model_b": model_b_name.value,
                         "winner": choice,
-                        "fpath_a": fpaths[1].value,  
-                        "fpath_b": fpaths[2].value, 
                     }
 
                     try:
                         logging.debug("Adding vote data to the database: %s", vote_data)
-                        from db import add_vote
+
                         result = add_vote(vote_data)
                         logging.info("Vote successfully recorded in the database with ID: %s", result["id"])
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
-                    (new_fpath_input, new_input_image, new_fpath_a, new_segmented_a,
-                     new_fpath_b, new_segmented_b, new_a_name, new_b_name) = select_new_image()
+                    new_fpath_input, new_input_image, new_segmented_a, new_segmented_b, new_a_name, new_b_name = select_new_image()
                     model_a_name.value = new_a_name
                     model_b_name.value = new_b_name
                     fpath_input.value = new_fpath_input
-                    fpath_a.value = new_fpath_a
-                    fpath_b.value = new_fpath_b
 
                     mask_difference = compute_mask_difference(new_segmented_a, new_segmented_b)
 
                     # Update the notice markdown with the new vote count
                     new_notice_markdown = get_notice_markdown()
 
-                    return (fpath_input.value, (new_input_image, [(mask_difference, "Mask")]), fpath_a.value, new_segmented_a,
-                            fpath_b.value, new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown)
+                    return (fpath_input.value, (new_input_image, [(mask_difference, "Mask")]), new_segmented_a,
+                             new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown)
            
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
