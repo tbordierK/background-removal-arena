@@ -16,6 +16,8 @@ import time
 from datasets import load_dataset
 from huggingface_hub import CommitScheduler
 
+token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+
 # Load datasets
 dataset = load_dataset("bgsys/background-removal-arena-test", split='train')
 
@@ -35,6 +37,7 @@ scheduler = CommitScheduler(
     repo_type="dataset",
     folder_path=JSON_DATASET_DIR,
     path_in_repo="data",
+    token=token
 )
 
 
