@@ -7,6 +7,14 @@ import numpy as np
 from PIL import Image
 import random
 from db import compute_elo_scores, get_all_votes
+import json
+from pathlib import Path
+from uuid import uuid4
+import logging
+import threading
+import time
+
+from huggingface_hub import CommitScheduler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,9 +22,17 @@ logging.basicConfig(level=logging.INFO)
 # Load environment variables from .env file
 load_dotenv()
 
-# Access the API key
-PHOTOROOM_API_KEY = os.getenv('PHOTOROOM_API_KEY')
-CLIPDROP_API_KEY = os.getenv('CLIPDROP_API_KEY')
+# Directory and path setup for JSON dataset
+JSON_DATASET_DIR = Path("data/json_dataset")
+JSON_DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+# Initialize CommitScheduler for Hugging Face
+scheduler = CommitScheduler(
+    repo_id="bgsys/votes_datasets_test",
+    repo_type="dataset",
+    folder_path=JSON_DATASET_DIR,
+    path_in_repo="data",
+)
 
 
 def fetch_elo_scores():
@@ -261,6 +277,48 @@ def load_images_from_directory(directory):
     image_files = [f for f in os.listdir(directory) if f.endswith(('.png', '.jpg', '.jpeg'))]
     return [os.path.join(directory, f) for f in image_files]
 
+
+def dump_database_to_json():
+    """Dump the database to a JSON file and upload it to Hugging Face."""
+    votes = get_all_votes()
+    json_data = [
+        {
+            "id": vote.id,
+            "image_id": vote.image_id,
+            "model_a": vote.model_a,
+            "model_b": vote.model_b,
+            "winner": vote.winner,
+            "user_id": vote.user_id,
+            "fpath_a": vote.fpath_a,
+            "fpath_b": vote.fpath_b,
+            "timestamp": vote.timestamp.isoformat()
+        }
+        for vote in votes
+    ]
+
+    json_file_path = JSON_DATASET_DIR / "votes.json"
+    # Upload to Hugging Face
+    with scheduler.lock:
+        with json_file_path.open("w") as f:
+            json.dump(json_data, f, indent=4)
+
+    logging.info("Database dumped to JSON")
+
+def schedule_dump_database(interval=60):
+    """Schedule the database dump to JSON every specified interval in seconds."""
+    def run():
+        while True:
+            logging.info("Starting database dump to JSON.")
+            dump_database_to_json()
+            logging.info("Database dump completed. Sleeping for %d seconds.", interval)
+            time.sleep(interval)
+
+    logging.info("Initializing database dump scheduler with interval: %d seconds.", interval)
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    logging.info("Database dump scheduler started.")
+
 if __name__ == "__main__":
+    schedule_dump_database()  # Start the periodic database dump
     demo = gradio_interface()
     demo.launch()
