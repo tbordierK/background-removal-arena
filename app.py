@@ -13,8 +13,11 @@ from uuid import uuid4
 import logging
 import threading
 import time
-
+from datasets import load_dataset
 from huggingface_hub import CommitScheduler
+
+# Load datasets
+dataset = load_dataset("bgsys/background-removal-arena-test", split='train')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -67,41 +70,41 @@ def update_rankings_table():
 
 def select_new_image():
     """Select a new image and its segmented versions."""
-    image_paths = load_images_from_directory("data/web-original-images")
-    random.shuffle(image_paths)  # Shuffle images to ensure randomness on reload
-    last_image_path = None
     max_attempts = 10
+    last_image_index = None
 
     for _ in range(max_attempts):
-        available_images = [path for path in image_paths if path != last_image_path]
+        available_indices = [i for i in range(len(dataset)) if i != last_image_index]
         
-        if not available_images:
+        if not available_indices:
             logging.error("No available images to select from.")
             return None
 
-        random_image_path = random.choice(available_images)
-        input_image = Image.open(random_image_path)
+        random_index = random.choice(available_indices)
+        sample = dataset[random_index]
+        input_image = sample['original_image']
+
+        segmented_images = [sample['clipdrop_image'], sample['bria_image'],
+                            sample['photoroom_image'], sample['removebg_image']]
+        segmented_sources = ['Clipdrop', 'BRIA RMBG 2.0', 'Photoroom', 'RemoveBG']
         
-        image_filename = os.path.splitext(os.path.basename(random_image_path))[0] + ".png"
-        segmented_image_paths = {
-            "Photoroom": os.path.join("data/resized/photoroom", image_filename),
-            #"Clipdrop": os.path.join("data/processed/clipdrop", image_filename),
-            "RemoveBG": os.path.join("data/resized/removebg", image_filename),
-            "BRIA RMBG 2.0": os.path.join("data/resized/bria", image_filename)
-        }
-        
+        if segmented_images.count(None) > 2:
+            logging.error("Not enough segmented images found for: %s. Resampling another image.", sample['original_filename'])
+            last_image_index = random_index
+            continue
+
         try:
-            selected_models = random.sample(list(segmented_image_paths.keys()), 2)
-            model_a_name, model_b_name = selected_models
-            model_a_output_path = segmented_image_paths[model_a_name]
-            model_b_output_path = segmented_image_paths[model_b_name]
-            model_a_output_image = Image.open(model_a_output_path)
-            model_b_output_image = Image.open(model_b_output_path)
-            return (random_image_path, input_image, model_a_output_path, model_a_output_image,
-                    model_b_output_path, model_b_output_image, model_a_name, model_b_name)
-        except FileNotFoundError as e:
-            logging.error("File not found: %s. Resampling another image.", e)
-            last_image_path = random_image_path
+            selected_indices = random.sample([i for i, img in enumerate(segmented_images) if img is not None], 2)
+            model_a_index, model_b_index = selected_indices
+            model_a_output_image = segmented_images[model_a_index]
+            model_b_output_image = segmented_images[model_b_index]
+            model_a_name = segmented_sources[model_a_index]
+            model_b_name = segmented_sources[model_b_index]
+            return (sample['original_image'], input_image, model_a_output_image, model_a_output_image,
+                    model_b_output_image, model_b_output_image, model_a_name, model_b_name)
+        except Exception as e:
+            logging.error("Error processing images: %s. Resampling another image.", str(e))
+            last_image_index = random_index
 
     logging.error("Failed to select a new image after %d attempts.", max_attempts)
     return None
@@ -271,12 +274,6 @@ def gradio_interface():
                 )
 
     return demo
-
-def load_images_from_directory(directory):
-    """Load and return image paths from a directory."""
-    image_files = [f for f in os.listdir(directory) if f.endswith(('.png', '.jpg', '.jpeg'))]
-    return [os.path.join(directory, f) for f in image_files]
-
 
 def dump_database_to_json():
     """Dump the database to a JSON file and upload it to Hugging Face."""
