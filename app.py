@@ -31,7 +31,7 @@ JSON_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
 # Initialize CommitScheduler for Hugging Face
 scheduler = CommitScheduler(
-    repo_id="bgsys/votes_datasets_test",
+    repo_id="bgsys/votes_datasets_test2",
     repo_type="dataset",
     folder_path=JSON_DATASET_DIR,
     path_in_repo="data",
@@ -276,8 +276,6 @@ def dump_database_to_json():
             "model_b": vote.model_b,
             "winner": vote.winner,
             "user_id": vote.user_id,
-            "fpath_a": vote.fpath_a,
-            "fpath_b": vote.fpath_b,
             "timestamp": vote.timestamp.isoformat()
         }
         for vote in votes
