@@ -1,5 +1,5 @@
 ---
-title: background-removal-arena
+title: Background Removal Arena
 emoji: ⚡
 colorFrom: pink
 colorTo: yellow
