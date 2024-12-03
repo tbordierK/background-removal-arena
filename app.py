@@ -6,7 +6,7 @@ import gradio as gr
 import numpy as np
 from PIL import Image
 import random
-from db import compute_elo_scores, get_all_votes, add_vote
+from db import compute_elo_scores, get_all_votes, add_vote, is_running_in_space
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -15,6 +15,8 @@ import threading
 import time
 from datasets import load_dataset
 from huggingface_hub import CommitScheduler
+
+
 
 token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 
@@ -31,15 +33,16 @@ load_dotenv()
 JSON_DATASET_DIR = Path("data/json_dataset")
 JSON_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
-# Initialize CommitScheduler for Hugging Face
-scheduler = CommitScheduler(
-    repo_id="bgsys/votes_datasets_test2",
-    repo_type="dataset",
-    folder_path=JSON_DATASET_DIR,
-    path_in_repo="data",
-    token=token
-)
-
+# Initialize CommitScheduler for Hugging Face only if running in space
+scheduler = None
+if is_running_in_space():
+    scheduler = CommitScheduler(
+        repo_id="bgsys/votes_datasets_test2",
+        repo_type="dataset",
+        folder_path=JSON_DATASET_DIR,
+        path_in_repo="data",
+        token=token
+    )
 
 def fetch_elo_scores():
     """Fetch and log Elo scores."""
@@ -216,8 +219,10 @@ def gradio_interface():
                     try:
                         logging.debug("Adding vote data to the database: %s", vote_data)
 
-                        result = add_vote(vote_data)
-                        logging.info("Vote successfully recorded in the database with ID: %s", result["id"])
+                        # Only add vote if running in space
+                        if is_running_in_space():
+                            result = add_vote(vote_data)
+                            logging.info("Vote successfully recorded in the database with ID: %s", result["id"])
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
@@ -270,6 +275,10 @@ def gradio_interface():
 
 def dump_database_to_json():
     """Dump the database to a JSON file and upload it to Hugging Face."""
+    if not is_running_in_space():
+        logging.info("Not running in Hugging Face Spaces. Skipping database dump.")
+        return
+
     votes = get_all_votes()
     json_data = [
         {
@@ -301,10 +310,13 @@ def schedule_dump_database(interval=60):
             logging.info("Database dump completed. Sleeping for %d seconds.", interval)
             time.sleep(interval)
 
-    logging.info("Initializing database dump scheduler with interval: %d seconds.", interval)
-    thread = threading.Thread(target=run, daemon=True)
-    thread.start()
-    logging.info("Database dump scheduler started.")
+    if is_running_in_space():
+        logging.info("Initializing database dump scheduler with interval: %d seconds.", interval)
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        logging.info("Database dump scheduler started.")
+    else:
+        logging.info("Not running in Hugging Face Spaces. Database dump scheduler not started.")
 
 if __name__ == "__main__":
     schedule_dump_database()  # Start the periodic database dump

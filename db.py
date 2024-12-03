@@ -1,3 +1,4 @@
+import os
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -6,8 +7,14 @@ import pandas as pd
 import uuid
 from rating_systems import compute_elo
 
+def is_running_in_space():
+    return "SPACE_ID" in os.environ
 
-DATABASE_URL = "sqlite:///./data/newvotes.db"  # Example with SQLite, replace with PostgreSQL for production
+if is_running_in_space():
+    DATABASE_URL = "sqlite:///./data/newvotes.db"  
+else:
+    DATABASE_URL = "sqlite:///./data/local.db"
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
