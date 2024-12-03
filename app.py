@@ -163,7 +163,7 @@ def gradio_interface():
                         height=500
                     )
                     input_image_display = gr.AnnotatedImage(
-                        value=(input_image, [(mask_difference > 0, "Difference Mask")]),
+                        value=(input_image, [(mask_difference > 0, "Difference between masks")]),
                         label="Input Image",
                         width=500,
                         height=500
