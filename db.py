@@ -5,16 +5,16 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import pandas as pd
-import uuid
+from datasets import load_dataset
 from rating_systems import compute_elo
 
 def is_running_in_space():
     return "SPACE_ID" in os.environ
 
 if is_running_in_space():
-    DATABASE_URL = "sqlite:///./data/newvotes.db"  
+    DATABASE_URL = "sqlite:///./data/hf-votes.db"  
 else:
-    DATABASE_URL = "sqlite:///./data/local.db"
+    DATABASE_URL = "sqlite:///./data/local2.db"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -42,6 +42,34 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def fill_database_once(dataset_name="bgsys/votes_datasets_test2"):
+    with SessionLocal() as db:
+        # Check if the database is already filled
+        if db.query(Vote).first() is None:
+            dataset = load_dataset(dataset_name)
+            for record in dataset['train']:
+                # Ensure the timestamp is a string
+                timestamp_str = record.get("timestamp", datetime.utcnow().isoformat())
+                if not isinstance(timestamp_str, str):
+                    timestamp_str = datetime.utcnow().isoformat()
+                
+                vote_data = {
+                    "image_id": record.get("image_id", ""),
+                    "model_a": record.get("model_a", ""),
+                    "model_b": record.get("model_b", ""),
+                    "winner": record.get("winner", ""),
+                    "user_id": record.get("user_id", ""),
+                    "fpath_a": record.get("fpath_a", ""),
+                    "fpath_b": record.get("fpath_b", ""),
+                    "timestamp": datetime.fromisoformat(timestamp_str)
+                }
+                db_vote = Vote(**vote_data)
+                db.add(db_vote)
+            db.commit()
+            logging.info("Database filled with data from Hugging Face dataset: %s", dataset_name)
+        else:
+            logging.info("Database already filled, skipping dataset loading.")
 
 def add_vote(vote_data):
     with SessionLocal() as db:

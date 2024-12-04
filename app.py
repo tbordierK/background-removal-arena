@@ -1,27 +1,33 @@
 import os
-import logging
-from typing import Tuple
-from dotenv import load_dotenv
-import gradio as gr
-import numpy as np
-from PIL import Image
-import random
-from db import compute_elo_scores, get_all_votes, add_vote, is_running_in_space
 import json
-from pathlib import Path
-from uuid import uuid4
+import time
+import random
 import logging
 import threading
-import time
+from pathlib import Path
+from uuid import uuid4
+from typing import Tuple
+
+import numpy as np
+import gradio as gr
+from PIL import Image
+from dotenv import load_dotenv
 from datasets import load_dataset
 from huggingface_hub import CommitScheduler
 
-
+from db import (
+    compute_elo_scores,
+    get_all_votes,
+    add_vote,
+    is_running_in_space,
+    fill_database_once
+)
 
 token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 
 # Load datasets
 dataset = load_dataset("bgsys/background-removal-arena-green", split='train')
+fill_database_once()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
