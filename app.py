@@ -5,13 +5,10 @@ import random
 import logging
 import threading
 from pathlib import Path
-from uuid import uuid4
-from typing import Tuple
 from datetime import datetime, timedelta
 
 import numpy as np
 import gradio as gr
-from PIL import Image
 from dotenv import load_dotenv
 from datasets import load_dataset
 from huggingface_hub import CommitScheduler
@@ -24,32 +21,29 @@ from db import (
     fill_database_once
 )
 
+# Load environment variables
+load_dotenv()
 token = os.getenv("HUGGINGFACE_HUB_TOKEN")
-
-# Load datasets
-dataset = load_dataset("bgsys/background-removal-arena-green", split='train')
-fill_database_once()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Load environment variables from .env file
-load_dotenv()
+# Load datasets and initialize database
+dataset = load_dataset("bgsys/background-removal-arena-green", split='train')
+fill_database_once()
 
-# Directory and path setup for JSON dataset
+# Directory setup for JSON dataset
 JSON_DATASET_DIR = Path("data/json_dataset")
 JSON_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
-# Initialize CommitScheduler for Hugging Face only if running in space
-scheduler = None
-if is_running_in_space():
-    scheduler = CommitScheduler(
-        repo_id="bgsys/votes_datasets_test2",
-        repo_type="dataset",
-        folder_path=JSON_DATASET_DIR,
-        path_in_repo="data",
-        token=token
-    )
+# Initialize CommitScheduler if running in space
+scheduler = CommitScheduler(
+    repo_id="bgsys/votes_datasets_test2",
+    repo_type="dataset",
+    folder_path=JSON_DATASET_DIR,
+    path_in_repo="data",
+    token=token
+) if is_running_in_space() else None
 
 def fetch_elo_scores():
     """Fetch and log Elo scores."""
@@ -63,21 +57,15 @@ def fetch_elo_scores():
 
 def update_rankings_table():
     """Update and return the rankings table based on Elo scores."""
-    elo_scores = fetch_elo_scores()
-    if elo_scores:
-        rankings = [
-            ["Photoroom", int(elo_scores.get("Photoroom", 1000))],
-            ["RemoveBG", int(elo_scores.get("RemoveBG", 1000))],
-            ["BRIA RMBG 2.0", int(elo_scores.get("BRIA RMBG 2.0", 1000))],
-        ]
-        rankings.sort(key=lambda x: x[1], reverse=True)
-        return rankings
-    else:
-        return [
-            ["Photoroom", -1],
-            ["RemoveBG", -1],
-            ["BRIA RMBG 2.0", -1],
-        ]
+    elo_scores = fetch_elo_scores() or {}
+    default_score = 1000
+    rankings = [
+        ["Photoroom", int(elo_scores.get("Photoroom", default_score))],
+        ["RemoveBG", int(elo_scores.get("RemoveBG", default_score))],
+        ["BRIA RMBG 2.0", int(elo_scores.get("BRIA RMBG 2.0", default_score))],
+    ]
+    rankings.sort(key=lambda x: x[1], reverse=True)
+    return rankings
 
 def select_new_image():
     """Select a new image and its segmented versions."""
@@ -95,8 +83,7 @@ def select_new_image():
         sample = dataset[random_index]
         input_image = sample['original_image']
 
-        segmented_images = [sample['clipdrop_image'], sample['bria_image'],
-                            sample['photoroom_image'], sample['removebg_image']]
+        segmented_images = [sample.get(key) for key in ['clipdrop_image', 'bria_image', 'photoroom_image', 'removebg_image']]
         segmented_sources = ['Clipdrop', 'BRIA RMBG 2.0', 'Photoroom', 'RemoveBG']
         
         if segmented_images.count(None) > 2:
@@ -107,11 +94,11 @@ def select_new_image():
         try:
             selected_indices = random.sample([i for i, img in enumerate(segmented_images) if img is not None], 2)
             model_a_index, model_b_index = selected_indices
-            model_a_output_image = segmented_images[model_a_index]
-            model_b_output_image = segmented_images[model_b_index]
-            model_a_name = segmented_sources[model_a_index]
-            model_b_name = segmented_sources[model_b_index]
-            return sample['original_filename'], input_image, model_a_output_image, model_b_output_image, model_a_name, model_b_name
+            return (
+                sample['original_filename'], input_image,
+                segmented_images[model_a_index], segmented_images[model_b_index],
+                segmented_sources[model_a_index], segmented_sources[model_b_index]
+            )
         except Exception as e:
             logging.error("Error processing images: %s. Resampling another image.", str(e))
             last_image_index = random_index
@@ -164,10 +151,10 @@ def gradio_interface():
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
 
-                filname, input_image, segmented_a, segmented_b, a_name, b_name = select_new_image()
+                filename, input_image, segmented_a, segmented_b, a_name, b_name = select_new_image()
                 model_a_name = gr.State(a_name)
                 model_b_name = gr.State(b_name)
-                fpath_input = gr.State(filname)
+                fpath_input = gr.State(filename)
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
