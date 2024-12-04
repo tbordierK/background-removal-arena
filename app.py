@@ -156,16 +156,16 @@ def gradio_interface():
                         logging.info(feedback_message)
                         return feedback_message
                      
-                    with gr.Column(scale=1):
+                    with gr.Column(scale=2):
                         username_input = gr.Textbox(
                             label="Enter your username (optional)",
-                            placeholder="✨ Enter your username (optional) ✨",
+                            placeholder="✨ Enter your username (optional)",
                             show_label=False,
                             submit_btn="Enter",
                             interactive=True
                         )
 
-                    with gr.Column(scale=4):
+                    with gr.Column(scale=3):
                         feedback_output = gr.Textbox(
                             label="Feedback",
                             interactive=False,
