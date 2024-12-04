@@ -21,7 +21,7 @@ from huggingface_hub import CommitScheduler
 token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 
 # Load datasets
-dataset = load_dataset("bgsys/background-removal-arena-test", split='train')
+dataset = load_dataset("bgsys/background-removal-arena-green", split='train')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -131,13 +131,20 @@ def get_notice_markdown():
     """
 
 def compute_mask_difference(segmented_a, segmented_b):
-    """Compute the absolute difference between two image masks."""
+    """Compute the absolute difference between two image masks, ignoring green background."""
     mask_a = np.asarray(segmented_a)
     mask_b = np.asarray(segmented_b)
 
-    # Create a binary mask where non-transparent pixels are marked as 1
-    mask_a_1d = np.where(mask_a[..., 3] != 0, 1, 0)
-    mask_b_1d = np.where(mask_b[..., 3] != 0, 1, 0)
+    # Define the green background color
+    green_background = (0, 255, 0, 255)
+
+    # Create a binary mask where non-green and non-transparent pixels are marked as 1
+    mask_a_1d = np.where(
+        (mask_a[..., :3] != green_background[:3]).any(axis=-1) & (mask_a[..., 3] != 0), 1, 0
+    )
+    mask_b_1d = np.where(
+        (mask_b[..., :3] != green_background[:3]).any(axis=-1) & (mask_b[..., 3] != 0), 1, 0
+    )
 
     # Compute the absolute difference between the masks
     return np.abs(mask_a_1d - mask_b_1d)
@@ -146,6 +153,7 @@ def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks() as demo:
         gr.Markdown("# Background Removal Arena")
+        button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
@@ -168,7 +176,7 @@ def gradio_interface():
                         height=500
                     )
                     input_image_display = gr.AnnotatedImage(
-                        value=(input_image, [(mask_difference > 0, "Difference between masks")]),
+                        value=(input_image, [(mask_difference > 0, button_name)]),
                         label="Input Image",
                         width=500,
                         height=500
@@ -218,11 +226,8 @@ def gradio_interface():
 
                     try:
                         logging.debug("Adding vote data to the database: %s", vote_data)
-
-                        # Only add vote if running in space
-                        if is_running_in_space():
-                            result = add_vote(vote_data)
-                            logging.info("Vote successfully recorded in the database with ID: %s", result["id"])
+                        result = add_vote(vote_data)
+                        logging.info("Vote successfully recorded in the database with ID: %s", result["id"])
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
@@ -236,7 +241,7 @@ def gradio_interface():
                     # Update the notice markdown with the new vote count
                     new_notice_markdown = get_notice_markdown()
 
-                    return (fpath_input.value, (new_input_image, [(mask_difference, "Mask")]), new_segmented_a,
+                    return (fpath_input.value, (new_input_image, [(mask_difference, button_name)]), new_segmented_a,
                              new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown)
            
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:

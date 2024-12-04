@@ -1,4 +1,5 @@
 import os
+import logging
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -48,6 +49,7 @@ def add_vote(vote_data):
         db.add(db_vote)
         db.commit()
         db.refresh(db_vote)
+        logging.info("Vote registered with ID: %s, using database: %s", db_vote.id, DATABASE_URL)
         return {"id": db_vote.id, "user_id": db_vote.user_id, "timestamp": db_vote.timestamp}
 
 # Function to get all votes
