@@ -150,6 +150,33 @@ def gradio_interface():
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
+                with gr.Row(equal_height=True):
+                    def on_enter_contest(username):
+                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
+                        logging.info(feedback_message)
+                        return feedback_message
+                     
+                    with gr.Column(scale=1):
+                        username_input = gr.Textbox(
+                            label="Enter your username (optional)",
+                            placeholder="✨ Enter your username (optional) ✨",
+                            show_label=False,
+                            submit_btn="Enter",
+                            interactive=True
+                        )
+
+                    with gr.Column(scale=4):
+                        feedback_output = gr.Textbox(
+                            label="Feedback",
+                            interactive=False,
+                            show_label=False
+                        )
+
+                    username_input.submit(
+                        fn=on_enter_contest,
+                        inputs=username_input,
+                        outputs=feedback_output
+                    )
 
                 filename, input_image, segmented_a, segmented_b, a_name, b_name = select_new_image()
                 model_a_name = gr.State(a_name)
@@ -158,7 +185,6 @@ def gradio_interface():
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
-                username_input = gr.Textbox(label="Enter your username (optional)", placeholder="Username for prize notification")
 
                 with gr.Row():
                     image_a_display = gr.Image(
@@ -272,7 +298,7 @@ def gradio_interface():
                     outputs=vote_table
                 )
 
-            with gr.Tab("👥 User Vote Leaderboard", id=3) as user_leaderboard_tab:
+            with gr.Tab("👥 Hall of Fame", id=3) as user_leaderboard_tab:
                 current_time = datetime.now()
                 start_of_week = current_time - timedelta(days=current_time.weekday())
 
@@ -289,7 +315,15 @@ def gradio_interface():
                     for vote in weekly_votes:
                         user_vote_count[vote.user_id] = user_vote_count.get(vote.user_id, 0) + 1
                     sorted_users = sorted(user_vote_count.items(), key=lambda x: x[1], reverse=True)
-                    return [[user, count] for user, count in sorted_users]
+                    
+                    # Add medals for the top 3 users
+                    medals = ["🥇", "🥈", "🥉"]
+                    leaderboard = []
+                    for index, (user, count) in enumerate(sorted_users):
+                        medal = medals[index] if index < len(medals) else ""
+                        leaderboard.append([f"{medal} {user}", count])
+                    
+                    return leaderboard
 
                 user_leaderboard_table = gr.Dataframe(
                     headers=["User", "Votes"],
