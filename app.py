@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 from uuid import uuid4
 from typing import Tuple
+from datetime import datetime, timedelta
 
 import numpy as np
 import gradio as gr
@@ -66,7 +67,6 @@ def update_rankings_table():
     if elo_scores:
         rankings = [
             ["Photoroom", int(elo_scores.get("Photoroom", 1000))],
-            #["Clipdrop", int(elo_scores.get("Clipdrop", 1000))],
             ["RemoveBG", int(elo_scores.get("RemoveBG", 1000))],
             ["BRIA RMBG 2.0", int(elo_scores.get("BRIA RMBG 2.0", 1000))],
         ]
@@ -75,7 +75,6 @@ def update_rankings_table():
     else:
         return [
             ["Photoroom", -1],
-            #["Clipdrop", -1],
             ["RemoveBG", -1],
             ["BRIA RMBG 2.0", -1],
         ]
@@ -172,6 +171,7 @@ def gradio_interface():
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
+                username_input = gr.Textbox(label="Enter your username (optional)", placeholder="Username for prize notification")
 
                 with gr.Row():
                     image_a_display = gr.Image(
@@ -200,27 +200,7 @@ def gradio_interface():
                     vote_tie = gr.Button("🤝  Tie")
                     vote_b_btn = gr.Button("👉  B is better")
 
-                
-                vote_a_btn.click(
-                    fn=lambda: vote_for_model("model_a", fpath_input, model_a_name, model_b_name),
-                    outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
-                    ]
-                )
-                vote_b_btn.click(
-                    fn=lambda: vote_for_model("model_b",fpath_input, model_a_name, model_b_name),
-                    outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
-                    ]
-                )
-                vote_tie.click(
-                    fn=lambda: vote_for_model("tie", fpath_input, model_a_name, model_b_name),
-                    outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
-                    ]
-                )
-            
-                def vote_for_model(choice, original_filename, model_a_name, model_b_name):
+                def vote_for_model(choice, original_filename, model_a_name, model_b_name, user_username):
                     """Submit a vote for a model and return updated images and model names."""
                     logging.info("Voting for model: %s", choice)
                     vote_data = {
@@ -228,6 +208,7 @@ def gradio_interface():
                         "model_a": model_a_name.value,
                         "model_b": model_b_name.value,
                         "winner": choice,
+                        "user_id": user_username or "anonymous"
                     }
 
                     try:
@@ -249,6 +230,28 @@ def gradio_interface():
 
                     return (fpath_input.value, (new_input_image, [(mask_difference, button_name)]), new_segmented_a,
                              new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown)
+
+                vote_a_btn.click(
+                    fn=lambda username: vote_for_model("model_a", fpath_input, model_a_name, model_b_name, username),
+                    inputs=username_input,
+                    outputs=[
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                    ]
+                )
+                vote_b_btn.click(
+                    fn=lambda username: vote_for_model("model_b", fpath_input, model_a_name, model_b_name, username),
+                    inputs=username_input,
+                    outputs=[
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                    ]
+                )
+                vote_tie.click(
+                    fn=lambda username: vote_for_model("tie", fpath_input, model_a_name, model_b_name, username),
+                    inputs=username_input,
+                    outputs=[
+                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                    ]
+                )
            
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
@@ -267,19 +270,58 @@ def gradio_interface():
             with gr.Tab("📊 Vote Data", id=2) as vote_data_tab:
                 def update_vote_data():
                     votes = get_all_votes()
-                    return [[vote.id, vote.image_id, vote.model_a, vote.model_b, vote.winner, vote.timestamp] for vote in votes]
+                    return [[vote.id, vote.image_id, vote.model_a, vote.model_b, vote.winner, vote.user_id, vote.timestamp] for vote in votes]
 
                 vote_table = gr.Dataframe(
-                    headers=["ID", "Image ID", "Model A", "Model B", "Winner", "Timestamp"],
+                    headers=["ID", "Image ID", "Model A", "Model B", "Winner", "user_id", "Timestamp"],
                     value=update_vote_data(),
                     label="Vote Data",
-                    column_widths=[20, 150, 100, 100, 100, 150],
+                    column_widths=[20, 150, 100, 100, 100, 100, 150],
                     row_count=0
                 )
 
                 vote_data_tab.select(
                     fn=lambda: update_vote_data(),
                     outputs=vote_table
+                )
+
+            with gr.Tab("👥 User Vote Leaderboard", id=3) as user_leaderboard_tab:
+                current_time = datetime.now()
+                start_of_week = current_time - timedelta(days=current_time.weekday())
+
+                def get_weekly_user_leaderboard():
+                    """Get the leaderboard of users with the most votes in the current week, excluding anonymous votes."""
+                    votes = get_all_votes()
+                    weekly_votes = [
+                        vote for vote in votes 
+                        if vote.timestamp >= start_of_week 
+                        and vote.user_id 
+                        and vote.user_id != "anonymous"
+                    ]
+                    user_vote_count = {}
+                    for vote in weekly_votes:
+                        user_vote_count[vote.user_id] = user_vote_count.get(vote.user_id, 0) + 1
+                    sorted_users = sorted(user_vote_count.items(), key=lambda x: x[1], reverse=True)
+                    return [[user, count] for user, count in sorted_users]
+
+                user_leaderboard_table = gr.Dataframe(
+                    headers=["User", "Votes"],
+                    value=get_weekly_user_leaderboard(),
+                    label="User Vote Leaderboard (This Week)",
+                    column_widths=[150, 100],
+                    row_count=0
+                )
+
+                leaderboard_info = gr.Markdown(
+                    value=f"""
+                    This leaderboard shows the ranking of users based on the number of votes they have cast in the current week. The current ranking is based on votes cast from {start_of_week.strftime('%Y-%m-%d')} to {current_time.strftime('%Y-%m-%d')}.
+                    It will be updated each week. 
+                    """
+                )
+
+                user_leaderboard_tab.select(
+                    fn=lambda: get_weekly_user_leaderboard(),
+                    outputs=user_leaderboard_table
                 )
 
     return demo
