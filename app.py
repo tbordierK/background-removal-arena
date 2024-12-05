@@ -149,6 +149,8 @@ def gradio_interface():
 
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
+                image_width = 800
+                image_height = 800
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 with gr.Row(equal_height=True):
                     def on_enter_contest(username):
@@ -190,25 +192,26 @@ def gradio_interface():
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
+            
 
                 with gr.Row():
                     image_a_display = gr.Image(
                         value=segmented_a,
                         label="Image",
-                        width=500,
-                        height=500
+                        width=image_width,
+                        height=image_height
                     )
                     input_image_display = gr.AnnotatedImage(
                         value=(input_image, [(mask_difference > 0, button_name)]),
                         label="Input Image",
-                        width=500,
-                        height=500
+                        width=image_width,
+                        height=image_height
                     )
                     image_b_display = gr.Image(
                         value=segmented_b,
                         label="Image",
-                        width=500,
-                        height=500
+                        width=image_width,
+                        height=image_height
                     )
                 state_tie = gr.State("Tie")
                 with gr.Row():
@@ -293,8 +296,8 @@ def gradio_interface():
                         return gr.Image(
                             value=segmented_image,
                             label="Image",
-                            width=500,
-                            height=500
+                            width=image_width,
+                            height=image_height
                         ), False
 
                     start_row, start_col = event.index[1], event.index[0]
