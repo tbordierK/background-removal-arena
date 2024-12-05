@@ -23,7 +23,7 @@ from db import (
 
 # Load environment variables
 load_dotenv()
-token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+huggingface_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,12 +37,12 @@ JSON_DATASET_DIR = Path("data/json_dataset")
 JSON_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
 # Initialize CommitScheduler if running in space
-scheduler = CommitScheduler(
+commit_scheduler = CommitScheduler(
     repo_id="bgsys/votes_datasets_test2",
     repo_type="dataset",
     folder_path=JSON_DATASET_DIR,
     path_in_repo="data",
-    token=token
+    token=huggingface_token
 ) if is_running_in_space() else None
 
 def fetch_elo_scores():
@@ -178,10 +178,12 @@ def gradio_interface():
                         outputs=feedback_output
                     )
 
-                filename, input_image, segmented_a, segmented_b, a_name, b_name = select_new_image()
-                model_a_name = gr.State(a_name)
-                model_b_name = gr.State(b_name)
-                fpath_input = gr.State(filename)
+                filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
+                state_segmented_a = gr.State(segmented_a)
+                state_segmented_b = gr.State(segmented_b)
+                state_model_a_name = gr.State(model_a_name)
+                state_model_b_name = gr.State(model_b_name)
+                state_filename = gr.State(filename)
 
                 # Compute the absolute difference between the masks
                 mask_difference = compute_mask_difference(segmented_a, segmented_b)
@@ -189,7 +191,6 @@ def gradio_interface():
                 with gr.Row():
                     image_a_display = gr.Image(
                         value=segmented_a,
-                        type="pil",
                         label="Model A",
                         width=500,
                         height=500
@@ -202,16 +203,15 @@ def gradio_interface():
                     )
                     image_b_display = gr.Image(
                         value=segmented_b,
-                        type="pil",
                         label="Model B",
                         width=500,
                         height=500
                     )
-                tie = gr.State("Tie")
+                state_tie = gr.State("Tie")
                 with gr.Row():
-                    vote_a_btn = gr.Button("👈  A is better")
-                    vote_tie = gr.Button("🤝  Tie")
-                    vote_b_btn = gr.Button("👉  B is better")
+                    vote_a_button = gr.Button("👈  A is better")
+                    vote_tie_button = gr.Button("🤝  Tie")
+                    vote_b_button = gr.Button("👉  B is better")
 
                 def vote_for_model(choice, original_filename, model_a_name, model_b_name, user_username):
                     """Submit a vote for a model and return updated images and model names."""
@@ -231,40 +231,91 @@ def gradio_interface():
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
-                    new_fpath_input, new_input_image, new_segmented_a, new_segmented_b, new_a_name, new_b_name = select_new_image()
-                    model_a_name.value = new_a_name
-                    model_b_name.value = new_b_name
-                    fpath_input.value = new_fpath_input
+                    new_filename, new_input_image, new_segmented_a, new_segmented_b, new_model_a_name, new_model_b_name = select_new_image()
+                    model_a_name.value = new_model_a_name
+                    model_b_name.value = new_model_b_name
+                    original_filename.value = new_filename
+                    state_segmented_a.value = new_segmented_a
+                    state_segmented_b.value = new_segmented_b
 
                     mask_difference = compute_mask_difference(new_segmented_a, new_segmented_b)
 
                     # Update the notice markdown with the new vote count
                     new_notice_markdown = get_notice_markdown()
 
-                    return (fpath_input.value, (new_input_image, [(mask_difference, button_name)]), new_segmented_a,
-                             new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown)
+                    return (original_filename.value, (new_input_image, [(mask_difference, button_name)]), new_segmented_a,
+                             new_segmented_b, model_a_name.value, model_b_name.value, new_notice_markdown, state_segmented_a.value, state_segmented_b.value)
 
-                vote_a_btn.click(
-                    fn=lambda username: vote_for_model("model_a", fpath_input, model_a_name, model_b_name, username),
+                vote_a_button.click(
+                    fn=lambda username: vote_for_model("model_a", state_filename, state_model_a_name, state_model_b_name, username),
                     inputs=username_input,
                     outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b
                     ]
                 )
-                vote_b_btn.click(
-                    fn=lambda username: vote_for_model("model_b", fpath_input, model_a_name, model_b_name, username),
+                vote_b_button.click(
+                    fn=lambda username: vote_for_model("model_b", state_filename, state_model_a_name, state_model_b_name, username),
                     inputs=username_input,
                     outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b
                     ]
                 )
-                vote_tie.click(
-                    fn=lambda username: vote_for_model("tie", fpath_input, model_a_name, model_b_name, username),
+                vote_tie_button.click(
+                    fn=lambda username: vote_for_model("tie", state_filename, state_model_a_name, state_model_b_name, username),
                     inputs=username_input,
                     outputs=[
-                        fpath_input, input_image_display, image_a_display, image_b_display, model_a_name, model_b_name, notice_markdown
+                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b
                     ]
                 )
+
+
+                def handle_zoom(image, event: gr.SelectData, zoomed_state, segmented_image):
+                    """Toggle between zoomed and original image based on click events."""
+                    if zoomed_state:
+                        return gr.Image(
+                            value=segmented_image,
+                            label="Model",
+                            width=500,
+                            height=500
+                        ), False
+
+                    start_row, start_col = event.index[1], event.index[0]
+                    zoom_size = max(10, min(image.shape[:2]) // 10)
+
+                    row_start, row_end = max(start_row - zoom_size, 0), min(start_row + zoom_size, image.shape[0])
+                    col_start, col_end = max(start_col - zoom_size, 0), min(start_col + zoom_size, image.shape[1])
+
+                    grey_image = np.mean(image, axis=-1, keepdims=True).astype(image.dtype)
+                    grey_image = np.repeat(grey_image, image.shape[-1], axis=-1)
+                    output_image = grey_image.copy()
+
+                    zoomed_area = image[row_start:row_end, col_start:col_end]
+                    upscale_factor = 6
+                    zoomed_area_upscaled = np.kron(zoomed_area, np.ones((upscale_factor, upscale_factor, 1)))
+
+                    center_row, center_col = start_row, start_col
+                    row_start_upscaled = max(center_row - zoomed_area_upscaled.shape[0] // 2, 0)
+                    row_end_upscaled = min(center_row + zoomed_area_upscaled.shape[0] // 2, output_image.shape[0])
+                    col_start_upscaled = max(center_col - zoomed_area_upscaled.shape[1] // 2, 0)
+                    col_end_upscaled = min(center_col + zoomed_area_upscaled.shape[1] // 2, output_image.shape[1])
+
+                    row_start_zoomed = max(0, -row_start_upscaled)
+                    row_end_zoomed = row_start_zoomed + (row_end_upscaled - row_start_upscaled)
+                    col_start_zoomed = max(0, -col_start_upscaled)
+                    col_end_zoomed = col_start_zoomed + (col_end_upscaled - col_start_upscaled)
+
+                    row_end_zoomed = min(row_end_zoomed, zoomed_area_upscaled.shape[0])
+                    col_end_zoomed = min(col_end_zoomed, zoomed_area_upscaled.shape[1])
+
+                    output_image[row_start_upscaled:row_end_upscaled, col_start_upscaled:col_end_upscaled] = \
+                        zoomed_area_upscaled[row_start_zoomed:row_end_zoomed, col_start_zoomed:col_end_zoomed]
+
+                    return output_image, True
+
+                zoomed_state_a = gr.State(False)
+                zoomed_state_b = gr.State(False)
+                image_a_display.select(handle_zoom, [image_a_display, zoomed_state_a, state_segmented_a], [image_a_display, zoomed_state_a])
+                image_b_display.select(handle_zoom, [image_b_display, zoomed_state_b, state_segmented_b], [image_b_display, zoomed_state_b])
            
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
@@ -369,7 +420,7 @@ def dump_database_to_json():
 
     json_file_path = JSON_DATASET_DIR / "votes.json"
     # Upload to Hugging Face
-    with scheduler.lock:
+    with commit_scheduler.lock:
         with json_file_path.open("w") as f:
             json.dump(json_data, f, indent=4)
 
