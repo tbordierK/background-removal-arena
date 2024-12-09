@@ -179,41 +179,49 @@ def gradio_interface():
                         inputs=username_input,
                         outputs=feedback_output
                     )
-
-                filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
-                state_segmented_a = gr.State(segmented_a)
-                state_segmented_b = gr.State(segmented_b)
-                state_model_a_name = gr.State(model_a_name)
-                state_model_b_name = gr.State(model_b_name)
-                state_filename = gr.State(filename)
-
-                zoomed_state_a = gr.State(False)
-                zoomed_state_b = gr.State(False)
-
-                # Compute the absolute difference between the masks
-                mask_difference = compute_mask_difference(segmented_a, segmented_b)
-            
-
-                with gr.Row():
-                    image_a_display = gr.Image(
+                    
+                def refresh_states():
+                    filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
+                    mask_difference = compute_mask_difference(segmented_a, segmented_b)
+                    image_a = gr.Image(
                         value=segmented_a,
                         label="Image",
                         width=image_width,
                         height=image_height
                     )
+                    
                     input_image_display = gr.AnnotatedImage(
                         value=(input_image, [(mask_difference > 0, button_name)]),
                         label="Input Image",
                         width=image_width,
                         height=image_height
                     )
-                    image_b_display = gr.Image(
+
+                    image_b = gr.Image(
                         value=segmented_b,
                         label="Image",
                         width=image_width,
                         height=image_height
                     )
-                state_tie = gr.State("Tie")
+                    
+                    zoomed_state_a = gr.State(False)
+                    zoomed_state_b = gr.State(False)
+
+                    state_model_a_name = gr.State(model_a_name)
+                    state_model_b_name = gr.State(model_b_name)
+                    state_filename = gr.State(filename)
+                    state_segmented_a = gr.Image(value=segmented_a, visible=False)
+                    state_segmented_b = gr.Image(value=segmented_b, visible=False)
+            
+                    outputs = [
+                        state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                        input_image_display, zoomed_state_a, zoomed_state_b, state_segmented_a, state_segmented_b
+                    ]
+                    return outputs
+
+                with gr.Row():
+                    state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display, zoomed_state_a, zoomed_state_b, state_segmented_a, state_segmented_b = refresh_states()
+                  
                 with gr.Row():
                     vote_a_button = gr.Button("👈  A is better")
                     vote_tie_button = gr.Button("🤝  Tie")
@@ -237,80 +245,68 @@ def gradio_interface():
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
-                    new_filename, new_input_image, new_segmented_a, new_segmented_b, new_model_a_name, new_model_b_name = select_new_image()
-                    model_a_name.value = new_model_a_name
-                    model_b_name.value = new_model_b_name
-                    original_filename.value = new_filename
-                    state_segmented_a.value = new_segmented_a
-                    state_segmented_b.value = new_segmented_b
-
-                    mask_difference = compute_mask_difference(new_segmented_a, new_segmented_b)
-
-                    # Update the notice markdown with the new vote count
+                    outputs = refresh_states()
                     new_notice_markdown = get_notice_markdown()
 
-                    # Reinitialize zoom states to False
-                    zoomed_state_a.value = False
-                    zoomed_state_b.value = False
-
-                    return (
-                        original_filename.value, 
-                        (new_input_image, [(mask_difference, button_name)]), 
-                        new_segmented_a,
-                        new_segmented_b, 
-                        model_a_name.value, 
-                        model_b_name.value, 
-                        new_notice_markdown, 
-                        state_segmented_a.value, 
-                        state_segmented_b.value, 
-                        zoomed_state_a.value, 
-                        zoomed_state_b.value
-                    )
+                    return outputs + [new_notice_markdown]
 
                 vote_a_button.click(
                     fn=lambda username: vote_for_model("model_a", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=username_input,
+                    inputs=[username_input],
                     outputs=[
-                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b, zoomed_state_a, zoomed_state_b
+                        state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                        input_image_display, zoomed_state_a, zoomed_state_b, 
+                        state_segmented_a, state_segmented_b, notice_markdown
                     ]
                 )
                 vote_b_button.click(
                     fn=lambda username: vote_for_model("model_b", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=username_input,
+                    inputs=[username_input],
                     outputs=[
-                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b, zoomed_state_a, zoomed_state_b
+                        state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                        input_image_display, zoomed_state_a, zoomed_state_b, 
+                        state_segmented_a, state_segmented_b, notice_markdown
                     ]
                 )
                 vote_tie_button.click(
                     fn=lambda username: vote_for_model("tie", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=username_input,
+                    inputs=[username_input],
                     outputs=[
-                        state_filename, input_image_display, image_a_display, image_b_display, state_model_a_name, state_model_b_name, notice_markdown, state_segmented_a, state_segmented_b, zoomed_state_a, zoomed_state_b
+                        state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                        input_image_display, zoomed_state_a, zoomed_state_b, 
+                        state_segmented_a, state_segmented_b, notice_markdown
                     ]
                 )
 
 
-                def handle_zoom(image, event: gr.SelectData, zoomed_state, segmented_image):
+                def handle_zoom(current_image, zoomed_state_input, original_image, event: gr.SelectData):
                     """Toggle between zoomed and original image based on click events."""
+                    
+                    # Check if zoomed_state is a gr.State and get its value
+                    if isinstance(zoomed_state_input, gr.State):
+                        zoomed_state = zoomed_state_input.value
+                    else:
+                        zoomed_state = zoomed_state_input
+
                     if zoomed_state:
                         return gr.Image(
-                            value=segmented_image,
+                            value=original_image,
                             label="Image",
                             width=image_width,
                             height=image_height
                         ), False
 
                     start_row, start_col = event.index[1], event.index[0]
-                    zoom_size = max(10, min(image.shape[:2]) // 10)
+                    zoom_size = max(10, min(current_image.shape[:2]) // 10)
 
-                    row_start, row_end = max(start_row - zoom_size, 0), min(start_row + zoom_size, image.shape[0])
-                    col_start, col_end = max(start_col - zoom_size, 0), min(start_col + zoom_size, image.shape[1])
+                    row_start, row_end = max(start_row - zoom_size, 0), min(start_row + zoom_size, current_image.shape[0])
+                    col_start, col_end = max(start_col - zoom_size, 0), min(start_col + zoom_size, current_image.shape[1])
 
-                    grey_image = np.mean(image, axis=-1, keepdims=True).astype(image.dtype)
-                    grey_image = np.repeat(grey_image, image.shape[-1], axis=-1)
+                    grey_image = np.mean(current_image, axis=-1, keepdims=True).astype(current_image.dtype)
+                    grey_image = np.repeat(grey_image, current_image.shape[-1], axis=-1)
                     output_image = grey_image.copy()
 
-                    zoomed_area = image[row_start:row_end, col_start:col_end]
+                    zoomed_area = current_image[row_start:row_end, col_start:col_end]
                     upscale_factor = 6
                     zoomed_area_upscaled = np.kron(zoomed_area, np.ones((upscale_factor, upscale_factor, 1)))
 
@@ -333,10 +329,9 @@ def gradio_interface():
 
                     return output_image, True
 
-              
-                image_a_display.select(handle_zoom, [image_a_display, zoomed_state_a, state_segmented_a], [image_a_display, zoomed_state_a])
-                image_b_display.select(handle_zoom, [image_b_display, zoomed_state_b, state_segmented_b], [image_b_display, zoomed_state_b])
-           
+            image_a.select(handle_zoom, [image_a, zoomed_state_a, state_segmented_a], [image_a, zoomed_state_a])
+            image_b.select(handle_zoom, [image_b, zoomed_state_b, state_segmented_b], [image_b, zoomed_state_b])
+               
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
                     headers=["Model", "Ranking"],
