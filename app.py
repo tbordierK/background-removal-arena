@@ -67,6 +67,7 @@ def update_rankings_table():
     rankings.sort(key=lambda x: x[1], reverse=True)
     return rankings
 
+
 def select_new_image():
     """Select a new image and its segmented versions."""
     max_attempts = 10
@@ -141,9 +142,59 @@ def compute_mask_difference(segmented_a, segmented_b):
     # Compute the absolute difference between the masks
     return np.abs(mask_a_1d - mask_b_1d)
 
+js = r"""
+function load_zoom() {
+    setTimeout(function() {
+
+    // Select all images from the three displayed image containers.
+    const images = document.querySelectorAll('.image-container img');
+
+    // Set transform origin so scaling and translating feels "natural".
+    images.forEach(img => {
+        img.style.transformOrigin = 'top left';
+        img.style.transition = 'transform 0.1s ease-out';
+        img.style.cursor = 'zoom-in';
+    });
+
+    // Choose a scale factor
+    const scale = 2;
+
+    function handleMouseMove(e) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const xPercent = (e.clientX - rect.left) / rect.width;
+        const yPercent = (e.clientY - rect.top) / rect.height;
+        const offsetX = xPercent * (scale - 1) * 100;
+        const offsetY = yPercent * (scale - 1) * 100;
+
+        images.forEach(img => {
+            img.style.transform = `translate(-${offsetX}%, -${offsetY}%) scale(${scale})`;
+        });
+    }
+
+    function handleMouseEnter(e) {
+        e.currentTarget.addEventListener('mousemove', handleMouseMove);
+    }
+
+    function handleMouseLeave(e) {
+        e.currentTarget.removeEventListener('mousemove', handleMouseMove);
+        images.forEach(img => {
+            img.style.transform = 'translate(0,0) scale(1)';
+        });
+    }
+
+    const containers = document.querySelectorAll('.image-container');
+
+    containers.forEach(container => {
+        container.addEventListener('mouseenter', handleMouseEnter);
+        container.addEventListener('mouseleave', handleMouseLeave);
+    });
+}, 1000); // 1 second timeout
+}
+"""
+
 def gradio_interface():
     """Create and return the Gradio interface."""
-    with gr.Blocks() as demo:
+    with gr.Blocks(js=js) as demo:
         gr.Markdown("# Background Removal Arena")
         button_name = "Difference between masks"
 
@@ -277,7 +328,7 @@ def gradio_interface():
                         state_segmented_a, state_segmented_b, notice_markdown
                     ]
                 )
-
+            
 
                 def handle_zoom(current_image, zoomed_state_input, original_image, other_image, event: gr.SelectData):
                     """Toggle between zoomed and original image based on click events."""
@@ -462,7 +513,11 @@ def schedule_dump_database(interval=60):
     else:
         logging.info("Not running in Hugging Face Spaces. Database dump scheduler not started.")
 
+
+
+
 if __name__ == "__main__":
     schedule_dump_database()  # Start the periodic database dump
     demo = gradio_interface()
+
     demo.launch()
