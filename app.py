@@ -299,6 +299,17 @@ def gradio_interface():
                     }
                     logging.debug(vote_data)
 
+                     # Create a gr.Info message with model names and the user's choice
+                    voted_model = vote_data[vote_data["winner"]] if vote_data["winner"] in ["model_a", "model_b"] else "Tie"
+                    voted_model_emoji = "👈" if choice == "model_a" else "👉" if choice == "model_b" else "🤝"
+                    voted_model_color = "green" if choice == "model_a" else "blue" if choice == "model_b" else "gray"
+                    info_message = (
+                        f"<p>You voted for <strong style='color:{voted_model_color};'>{voted_model_emoji} {voted_model}</strong>.</p>"
+                        f"<p><span style='color:green;'>👈 {model_a_name.value}</span> - "
+                        f"<span style='color:blue;'>👉 {model_b_name.value}</span></p>"
+                    )
+                    gr.Info(info_message)
+
                     try:
                         logging.debug("Adding vote data to the database: %s", vote_data)
                         result = add_vote(vote_data)
