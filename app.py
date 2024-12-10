@@ -194,14 +194,13 @@ function load_zoom() {
 
 def gradio_interface():
     """Create and return the Gradio interface."""
-    with gr.Blocks(js=js) as demo:
+    with gr.Blocks(js=js, fill_width=True) as demo:
         gr.Markdown("# Background Removal Arena")
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
-                image_width = 800
-                image_height = 800
+                image_width = None
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 with gr.Row(equal_height=True):
                     def on_enter_contest(username):
@@ -237,41 +236,33 @@ def gradio_interface():
                     image_a = gr.Image(
                         value=segmented_a,
                         label="Image",
-                        width=image_width,
-                        height=image_height
+                        width=image_width
                     )
                     
                     input_image_display = gr.AnnotatedImage(
                         value=(input_image, [(mask_difference > 0, button_name)]),
                         label="Input Image",
-                        width=image_width,
-                        height=image_height
+                        width=image_width
                     )
 
                     image_b = gr.Image(
                         value=segmented_b,
                         label="Image",
-                        width=image_width,
-                        height=image_height
+                        width=image_width
                     )
-                    
-                    zoomed_state_a = gr.State(False)
-                    zoomed_state_b = gr.State(False)
 
                     state_model_a_name = gr.State(model_a_name)
                     state_model_b_name = gr.State(model_b_name)
                     state_filename = gr.State(filename)
-                    state_segmented_a = gr.Image(value=segmented_a, visible=False)
-                    state_segmented_b = gr.Image(value=segmented_b, visible=False)
             
                     outputs = [
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, zoomed_state_a, zoomed_state_b, state_segmented_a, state_segmented_b
+                        input_image_display
                     ]
                     return outputs
 
                 with gr.Row():
-                    state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display, zoomed_state_a, zoomed_state_b, state_segmented_a, state_segmented_b = refresh_states()
+                    state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display = refresh_states()
                   
                 with gr.Row():
                     vote_a_button = gr.Button("👈  A is better")
@@ -306,8 +297,7 @@ def gradio_interface():
                     inputs=[username_input],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, zoomed_state_a, zoomed_state_b, 
-                        state_segmented_a, state_segmented_b, notice_markdown
+                        input_image_display, notice_markdown
                     ]
                 )
                 vote_b_button.click(
@@ -315,8 +305,7 @@ def gradio_interface():
                     inputs=[username_input],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, zoomed_state_a, zoomed_state_b, 
-                        state_segmented_a, state_segmented_b, notice_markdown
+                        input_image_display, notice_markdown
                     ]
                 )
                 vote_tie_button.click(
@@ -324,69 +313,11 @@ def gradio_interface():
                     inputs=[username_input],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, zoomed_state_a, zoomed_state_b, 
-                        state_segmented_a, state_segmented_b, notice_markdown
+                        input_image_display, notice_markdown
                     ]
                 )
             
 
-                def handle_zoom(current_image, zoomed_state_input, original_image, other_image, event: gr.SelectData):
-                    """Toggle between zoomed and original image based on click events."""
-                    
-                    # Determine the current zoom state
-                    zoomed_state = zoomed_state_input.value if isinstance(zoomed_state_input, gr.State) else zoomed_state_input
-
-                    if zoomed_state:
-                        return (
-                            gr.Image(value=original_image, label="Image", width=image_width, height=image_height), 
-                            False,
-                            gr.Image(value=other_image, label="Image", width=image_width, height=image_height),
-                            False
-                        )
-
-                    start_row, start_col = event.index[1], event.index[0]
-                    zoom_size = max(10, min(current_image.shape[:2]) // 10)
-                    row_start, row_end = max(start_row - zoom_size, 0), min(start_row + zoom_size, current_image.shape[0])
-                    col_start, col_end = max(start_col - zoom_size, 0), min(start_col + zoom_size, current_image.shape[1])
-
-                    grey_image = np.mean(current_image, axis=-1, keepdims=True).astype(current_image.dtype)
-                    grey_image = np.repeat(grey_image, current_image.shape[-1], axis=-1)
-                    output_image = grey_image.copy()
-
-                    zoomed_area = current_image[row_start:row_end, col_start:col_end]
-                    upscale_factor = 6
-                    zoomed_area_upscaled = np.kron(zoomed_area, np.ones((upscale_factor, upscale_factor, 1)))
-
-                    center_row, center_col = start_row, start_col
-                    row_start_upscaled = max(center_row - zoomed_area_upscaled.shape[0] // 2, 0)
-                    row_end_upscaled = min(center_row + zoomed_area_upscaled.shape[0] // 2, output_image.shape[0])
-                    col_start_upscaled = max(center_col - zoomed_area_upscaled.shape[1] // 2, 0)
-                    col_end_upscaled = min(center_col + zoomed_area_upscaled.shape[1] // 2, output_image.shape[1])
-
-                    row_start_zoomed = max(0, -row_start_upscaled)
-                    row_end_zoomed = row_start_zoomed + (row_end_upscaled - row_start_upscaled)
-                    col_start_zoomed = max(0, -col_start_upscaled)
-                    col_end_zoomed = col_start_zoomed + (col_end_upscaled - col_start_upscaled)
-
-                    row_end_zoomed = min(row_end_zoomed, zoomed_area_upscaled.shape[0])
-                    col_end_zoomed = min(col_end_zoomed, zoomed_area_upscaled.shape[1])
-
-                    output_image[row_start_upscaled:row_end_upscaled, col_start_upscaled:col_end_upscaled] = \
-                        zoomed_area_upscaled[row_start_zoomed:row_end_zoomed, col_start_zoomed:col_end_zoomed]
-
-                    # Apply the same zoom to the other image
-                    other_output_image = grey_image.copy()
-                    other_zoomed_area = other_image[row_start:row_end, col_start:col_end]
-                    other_zoomed_area_upscaled = np.kron(other_zoomed_area, np.ones((upscale_factor, upscale_factor, 1)))
-
-                    other_output_image[row_start_upscaled:row_end_upscaled, col_start_upscaled:col_end_upscaled] = \
-                        other_zoomed_area_upscaled[row_start_zoomed:row_end_zoomed, col_start_zoomed:col_end_zoomed]
-
-                    return output_image, True, other_output_image, True
-
-            image_a.select(handle_zoom, [image_a, zoomed_state_a, state_segmented_a, state_segmented_b], [image_a, zoomed_state_a, image_b, zoomed_state_b])
-            image_b.select(handle_zoom, [image_b, zoomed_state_b, state_segmented_b, state_segmented_a], [image_b, zoomed_state_b, image_a, zoomed_state_a])
-               
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
                     headers=["Model", "Ranking"],
