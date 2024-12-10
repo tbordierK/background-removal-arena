@@ -230,40 +230,49 @@ def gradio_interface():
                         outputs=feedback_output
                     )
                     
-                def refresh_states():
-                    filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
-                    mask_difference = compute_mask_difference(segmented_a, segmented_b)
-                    image_a = gr.Image(
-                        value=segmented_a,
-                        label="Image",
-                        width=image_width
-                    )
-                    
-                    input_image_display = gr.AnnotatedImage(
-                        value=(input_image, [(mask_difference > 0, button_name)]),
-                        label="Input Image",
-                        width=image_width
-                    )
-
-                    image_b = gr.Image(
-                        value=segmented_b,
-                        label="Image",
-                        width=image_width
-                    )
-
-                    state_model_a_name = gr.State(model_a_name)
-                    state_model_b_name = gr.State(model_b_name)
-                    state_filename = gr.State(filename)
-            
-                    outputs = [
-                        state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display
-                    ]
-                    return outputs
+               
 
                 with gr.Row():
-                    state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display = refresh_states()
-                  
+                    # Initialize components with empty states
+                    state_filename = gr.State("")
+                    state_model_a_name = gr.State("")
+                    state_model_b_name = gr.State("")
+                    image_a = gr.Image(label="Image A", width=image_width)
+                    input_image_display = gr.AnnotatedImage(label="Input Image", width=image_width)
+                    image_b = gr.Image(label="Image B", width=image_width)
+
+                    # Refresh states to load new image data
+
+                    def refresh_states():
+                        # Initialize empty states
+                        state_filename = gr.State("")
+                        state_model_a_name = gr.State("")
+                        state_model_b_name = gr.State("")
+                    
+                        # Call select_new_image to get new image data
+                        filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
+                        mask_difference = compute_mask_difference(segmented_a, segmented_b)
+                        
+                        # Update states with new data
+                        state_filename.value = filename
+                        state_model_a_name.value = model_a_name
+                        state_model_b_name.value = model_b_name
+
+                        # Create new gr.Image components with updated values
+                        image_a = gr.Image(value=segmented_a, label="Image A", width=image_width)
+                        image_b = gr.Image(value=segmented_b, label="Image B", width=image_width)
+                        input_image_display = gr.AnnotatedImage(
+                            value=(input_image, [(mask_difference > 0, button_name)]), 
+                            width=image_width
+                        )
+                        
+                        outputs = [
+                            state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                            input_image_display
+                        ]
+                        return outputs
+
+                    
                 with gr.Row():
                     vote_a_button = gr.Button("👈  A is better")
                     vote_tie_button = gr.Button("🤝  Tie")
@@ -396,7 +405,7 @@ def gradio_interface():
                     fn=lambda: get_weekly_user_leaderboard(),
                     outputs=user_leaderboard_table
                 )
-
+        demo.load(lambda: refresh_states(), inputs=None, outputs=[state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display])
     return demo
 
 def dump_database_to_json():
