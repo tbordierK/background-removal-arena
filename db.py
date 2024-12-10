@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import pandas as pd
 from datasets import load_dataset
-from rating_systems import compute_elo
+from rating_systems import compute_elo, compute_bootstrap_elo, get_median_elo_from_bootstrap
 
 def is_running_in_space():
     return "SPACE_ID" in os.environ
@@ -88,6 +88,8 @@ def get_all_votes():
 
 # Function to compute Elo scores
 def compute_elo_scores():
+    valid_models = ["Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
+    
     with SessionLocal() as db:
         votes = db.query(Vote).all()
         data = {
@@ -96,5 +98,44 @@ def compute_elo_scores():
             "winner": [vote.winner for vote in votes]
         }
         df = pd.DataFrame(data)
+        init_size = df.shape[0]
+
+        # Remove votes missing model_a, model_b or winner info
+        df.dropna(subset=["model_a", "model_b", "winner"], inplace=True)
+        
+        # Validate models and winner
+        def is_valid_vote(row):
+            if row["model_a"] not in valid_models or row["model_b"] not in valid_models:
+                return False
+            if row["winner"] not in ["model_a", "model_b", "tie"]:
+                return False
+            return True
+        
+        df = df[df.apply(is_valid_vote, axis=1)]
+        logging.info("Initial votes count: %d", init_size)
+        logging.info("Votes count after validation: %d", df.shape[0])
+
         elo_scores = compute_elo(df)
-        return elo_scores
+        bootstrap_elo_scores = compute_bootstrap_elo(df)
+        median_elo_scores = get_median_elo_from_bootstrap(bootstrap_elo_scores)
+        return elo_scores, median_elo_scores
+
+# Function to compute the number of votes for each model
+def compute_votes_per_model():
+    with SessionLocal() as db:
+        votes = db.query(Vote).all()
+        model_vote_count = {}
+        
+        for vote in votes:
+            if vote.winner == "model_a":
+                model = vote.model_a
+            elif vote.winner == "model_b":
+                model = vote.model_b
+            else:
+                continue
+            
+            if model not in model_vote_count:
+                model_vote_count[model] = 0
+            model_vote_count[model] += 1
+        
+        return model_vote_count

@@ -18,7 +18,8 @@ from db import (
     get_all_votes,
     add_vote,
     is_running_in_space,
-    fill_database_once
+    fill_database_once,
+    compute_votes_per_model
 )
 
 # Load environment variables
@@ -48,23 +49,27 @@ commit_scheduler = CommitScheduler(
 def fetch_elo_scores():
     """Fetch and log Elo scores."""
     try:
-        elo_scores = compute_elo_scores()
+        elo_scores, bootstrap_elo_scores = compute_elo_scores()
         logging.info("Elo scores successfully computed.")
-        return elo_scores
+        return elo_scores, bootstrap_elo_scores
     except Exception as e:
         logging.error("Error computing Elo scores: %s", str(e))
         return None
 
 def update_rankings_table():
     """Update and return the rankings table based on Elo scores."""
-    elo_scores = fetch_elo_scores() or {}
-    default_score = 1000
-    rankings = [
-        ["Photoroom", int(elo_scores.get("Photoroom", default_score))],
-        ["RemoveBG", int(elo_scores.get("RemoveBG", default_score))],
-        ["BRIA RMBG 2.0", int(elo_scores.get("BRIA RMBG 2.0", default_score))],
-    ]
-    rankings.sort(key=lambda x: x[1], reverse=True)
+    elo_scores, bootstrap_elo_scores = fetch_elo_scores() or {}
+    votes_per_model = compute_votes_per_model()
+    try:
+        rankings = [
+            ["Photoroom", int(elo_scores["Photoroom"]), int(bootstrap_elo_scores["Photoroom"]), votes_per_model.get("Photoroom", 0)],
+            ["RemoveBG", int(elo_scores["RemoveBG"]), int(bootstrap_elo_scores["RemoveBG"]), votes_per_model.get("RemoveBG", 0)],
+            ["BRIA RMBG 2.0", int(elo_scores["BRIA RMBG 2.0"]), int(bootstrap_elo_scores["BRIA RMBG 2.0"]), votes_per_model.get("BRIA RMBG 2.0", 0)],
+        ]
+    except KeyError as e:
+        logging.error("Missing score for model: %s", str(e))
+        return []
+    rankings.sort(key=lambda x: x[2], reverse=True)
     return rankings
 
 
@@ -349,10 +354,10 @@ def gradio_interface():
             
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
-                    headers=["Model", "Ranking"],
+                    headers=["Model", "Elo score", "Bootstrapped Elo score", "Selections"],
                     value=update_rankings_table(),
                     label="Current Model Rankings",
-                    column_widths=[180, 60],
+                    column_widths=[180, 60, 60, 60],
                     row_count=4
                 )
 
@@ -360,6 +365,17 @@ def gradio_interface():
                     fn=lambda: update_rankings_table(),
                     outputs=rankings_table
                 )
+
+                # Explanation of Bootstrapped Elo Score
+                explanation_text = """
+                The Bootstrapped Elo score is a more robust estimate of the model's performance, 
+                calculated using bootstrapping techniques. This method provides a distribution of 
+                Elo scores by repeatedly sampling the data, which helps in understanding the 
+                variability and confidence in the model's ranking.
+
+                We used the approach from the Chatbot Arena [rating system code](https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/rating_systems.py).
+                """
+                gr.Markdown(explanation_text)
 
             with gr.Tab("📊 Vote Data", id=2) as vote_data_tab:
                 def update_vote_data():

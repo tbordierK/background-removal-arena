@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.orm import Session
 import pandas as pd
+from scipy.special import expit
 
 def get_matchups_models(df):
     n_rows = len(df)
@@ -41,19 +42,47 @@ def compute_elo(df, k=4.0, base=10.0, init_rating=1000.0, scale=400.0):
     return {model: ratings[idx] for idx, model in enumerate(models)}
 
 
-def compute_elo_from_votes(db: Session):
-    # Retrieve all votes from the database
-    votes = db.query(Vote).all()
-    
-    # Convert votes to a DataFrame
-    data = {
-        "model_a": [vote.model_a for vote in votes],
-        "model_b": [vote.model_b for vote in votes],
-        "winner": [vote.winner for vote in votes]
-    }
-    df = pd.DataFrame(data)
-    
-    # Compute Elo scores using the existing function
-    elo_scores = compute_elo(df)
-    
-    return elo_scores
+
+def compute_bootstrap_elo(
+    df, num_round=100, k=4.0, base=10.0, init_rating=1000.0, scale=400.0
+):
+    matchups, outcomes, models = preprocess_for_elo(df)
+    sample_indices = np.random.randint(low=0, high=len(df), size=(len(df), num_round))
+    ratings = fit_vectorized_elo(
+        matchups, outcomes, sample_indices, len(models), k, base, init_rating, scale
+    )
+    df = pd.DataFrame(data=ratings, columns=models)
+    return df[df.median().sort_values(ascending=False).index]
+
+def fit_vectorized_elo(
+    matchups,
+    outcomes,
+    sample_indices,
+    num_models,
+    k=4.0,
+    base=10.0,
+    init_rating=1000.0,
+    scale=400.0,
+):
+    """fit multiple sets of Elo ratings on different samples of the data at the same time"""
+    alpha = math.log(base) / scale
+    num_samples = sample_indices.shape[1]
+    ratings = np.zeros(shape=(num_samples, num_models), dtype=np.float64)
+    # iterate over the rows of sample_indices, each column is an index into a match in the input arrays
+    sample_range = np.arange(num_samples)
+    for matchup_indices in sample_indices:
+        model_a_indices = matchups[matchup_indices, 0]
+        model_b_indices = matchups[matchup_indices, 1]
+        model_a_ratings = ratings[sample_range, model_a_indices]
+        model_b_ratings = ratings[sample_range, model_b_indices]
+        sample_outcomes = outcomes[matchup_indices]
+        probs = expit(alpha * (model_a_ratings - model_b_ratings))
+        updates = k * (sample_outcomes - probs)
+        ratings[sample_range, model_a_indices] += updates
+        ratings[sample_range, model_b_indices] -= updates
+    return ratings + init_rating
+
+def get_median_elo_from_bootstrap(bootstrap_df):
+    median = dict(bootstrap_df.quantile(0.5))
+    median = {k: int(v + 0.5) for k, v in median.items()}
+    return median
