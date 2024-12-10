@@ -243,12 +243,7 @@ def gradio_interface():
 
                     # Refresh states to load new image data
 
-                    def refresh_states():
-                        # Initialize empty states
-                        state_filename = gr.State("")
-                        state_model_a_name = gr.State("")
-                        state_model_b_name = gr.State("")
-                    
+                    def refresh_states(state_filename, state_model_a_name, state_model_b_name):
                         # Call select_new_image to get new image data
                         filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
                         mask_difference = compute_mask_difference(segmented_a, segmented_b)
@@ -280,7 +275,21 @@ def gradio_interface():
 
                 def vote_for_model(choice, original_filename, model_a_name, model_b_name, user_username):
                     """Submit a vote for a model and return updated images and model names."""
-                    logging.info("Voting for model: %s", choice)
+                  
+
+                    if not original_filename.value:
+                        logging.error("The field 'original_filename' is empty or None.")
+                        raise ValueError("The field 'original_filename' must be provided and non-empty.")
+                    if not model_a_name.value:
+                        logging.error("The field 'model_a_name' is empty or None.")
+                        raise ValueError("The field 'model_a_name' must be provided and non-empty.")
+                    if not model_b_name.value:
+                        logging.error("The field 'model_b_name' is empty or None.")
+                        raise ValueError("The field 'model_b_name' must be provided and non-empty.")
+                    if not choice:
+                        logging.error("The field 'choice' is empty or None.")
+                        raise ValueError("The field 'choice' must be provided and non-empty.")
+
                     vote_data = {
                         "image_id": original_filename.value,
                         "model_a": model_a_name.value,
@@ -288,6 +297,7 @@ def gradio_interface():
                         "winner": choice,
                         "user_id": user_username or "anonymous"
                     }
+                    logging.debug(vote_data)
 
                     try:
                         logging.debug("Adding vote data to the database: %s", vote_data)
@@ -296,7 +306,7 @@ def gradio_interface():
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
-                    outputs = refresh_states()
+                    outputs = refresh_states(state_filename, state_model_a_name, state_model_b_name)
                     new_notice_markdown = get_notice_markdown()
 
                     return outputs + [new_notice_markdown]
@@ -405,7 +415,7 @@ def gradio_interface():
                     fn=lambda: get_weekly_user_leaderboard(),
                     outputs=user_leaderboard_table
                 )
-        demo.load(lambda: refresh_states(), inputs=None, outputs=[state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display])
+        demo.load(lambda: refresh_states(state_filename, state_model_a_name, state_model_b_name), inputs=None, outputs=[state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display])
     return demo
 
 def dump_database_to_json():
