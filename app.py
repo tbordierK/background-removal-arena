@@ -66,10 +66,10 @@ def update_rankings_table():
             ["RemoveBG", int(elo_scores["RemoveBG"]), int(bootstrap_elo_scores["RemoveBG"]), votes_per_model.get("RemoveBG", 0)],
             ["BRIA RMBG 2.0", int(elo_scores["BRIA RMBG 2.0"]), int(bootstrap_elo_scores["BRIA RMBG 2.0"]), votes_per_model.get("BRIA RMBG 2.0", 0)],
         ]
+        rankings.sort(key=lambda x: x[2], reverse=True)
     except KeyError as e:
         logging.error("Missing score for model: %s", str(e))
         return []
-    rankings.sort(key=lambda x: x[2], reverse=True)
     return rankings
 
 
