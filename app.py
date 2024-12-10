@@ -111,7 +111,6 @@ def get_notice_markdown():
     """Generate the notice markdown with dynamic vote count."""
     total_votes = len(get_all_votes())
     return f"""
-    # ⚔️  Background Removal Arena: Compare & Test the Best Background Removal Models
 
     ## 📜 How It Works
     - **Blind Test**: You will see two images with their background removed from two anonymous background removal models (Clipdrop, RemoveBG, Photoroom, BRIA RMBG 2.0).
@@ -120,7 +119,7 @@ def get_notice_markdown():
     ## 📊 Stats
     - **Total #votes**: {total_votes}
 
-    ## 👇 Test now!
+
     """
 
 def compute_mask_difference(segmented_a, segmented_b):
@@ -195,13 +194,13 @@ function load_zoom() {
 def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks(js=js, fill_width=True) as demo:
-        gr.Markdown("# Background Removal Arena")
+        gr.Markdown("#Background Removal Arena: Compare & Test the Best Background Removal Models")
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 image_width = None
-                notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
+              
                 with gr.Row(equal_height=True):
                     def on_enter_contest(username):
                         feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
@@ -322,6 +321,7 @@ def gradio_interface():
 
                     return outputs + [new_notice_markdown]
 
+                notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 vote_a_button.click(
                     fn=lambda username: vote_for_model("model_a", state_filename, state_model_a_name, state_model_b_name, username),
                     inputs=[username_input],
@@ -347,7 +347,6 @@ def gradio_interface():
                     ]
                 )
             
-
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
                     headers=["Model", "Ranking"],
