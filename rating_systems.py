@@ -44,7 +44,7 @@ def compute_elo(df, k=4.0, base=10.0, init_rating=1000.0, scale=400.0):
 
 
 def compute_bootstrap_elo(
-    df, num_round=100, k=4.0, base=10.0, init_rating=1000.0, scale=400.0
+    df, num_round=1000, k=4.0, base=10.0, init_rating=1000.0, scale=400.0
 ):
     matchups, outcomes, models = preprocess_for_elo(df)
     sample_indices = np.random.randint(low=0, high=len(df), size=(len(df), num_round))

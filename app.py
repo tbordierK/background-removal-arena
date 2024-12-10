@@ -49,29 +49,35 @@ commit_scheduler = CommitScheduler(
 def fetch_elo_scores():
     """Fetch and log Elo scores."""
     try:
-        elo_scores, bootstrap_elo_scores = compute_elo_scores()
+        median_elo_scores, model_rating_q025, model_rating_q975, variance = compute_elo_scores()
         logging.info("Elo scores successfully computed.")
-        return elo_scores, bootstrap_elo_scores
+        return median_elo_scores, model_rating_q025, model_rating_q975, variance
     except Exception as e:
         logging.error("Error computing Elo scores: %s", str(e))
         return None
 
 def update_rankings_table():
-    """Update and return the rankings table based on Elo scores."""
-    elo_scores, bootstrap_elo_scores = fetch_elo_scores() or {}
-    votes_per_model = compute_votes_per_model()
+    """Update and return the rankings table based on Elo scores and vote counts."""
+    median_elo_scores, model_rating_q025, model_rating_q975, variance = fetch_elo_scores() or {}
+    model_vote_counts = compute_votes_per_model()
     try:
-        rankings = [
-            ["Photoroom", int(elo_scores["Photoroom"]), int(bootstrap_elo_scores["Photoroom"]), votes_per_model.get("Photoroom", 0)],
-            ["RemoveBG", int(elo_scores["RemoveBG"]), int(bootstrap_elo_scores["RemoveBG"]), votes_per_model.get("RemoveBG", 0)],
-            ["BRIA RMBG 2.0", int(elo_scores["BRIA RMBG 2.0"]), int(bootstrap_elo_scores["BRIA RMBG 2.0"]), votes_per_model.get("BRIA RMBG 2.0", 0)],
-        ]
-        rankings.sort(key=lambda x: x[2], reverse=True)
+        # Create a list of models to iterate over
+        models = ["Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
+        rankings = []
+
+        for model in models:
+            elo_score = int(median_elo_scores.get(model, 0))
+            model_variance = int(variance.get(model, 0))
+            ci_95 = f"{int(model_rating_q025.get(model, 0))} - {int(model_rating_q975.get(model, 0))}"
+            vote_count = model_vote_counts.get(model, 0)
+            rankings.append([model, elo_score, model_variance, ci_95, vote_count])
+
+        # Sort rankings by Elo score in descending order
+        rankings.sort(key=lambda x: x[1], reverse=True)
     except KeyError as e:
         logging.error("Missing score for model: %s", str(e))
         return []
     return rankings
-
 
 def select_new_image():
     """Select a new image and its segmented versions."""
@@ -354,10 +360,10 @@ def gradio_interface():
             
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
-                    headers=["Model", "Elo score", "Bootstrapped Elo score", "Selections"],
+                    headers=["Model", "Elo score", "Variance", "95% CI", "Selections"],
                     value=update_rankings_table(),
                     label="Current Model Rankings",
-                    column_widths=[180, 60, 60, 60],
+                    column_widths=[180, 60, 60, 60, 60],
                     row_count=4
                 )
 
@@ -368,12 +374,11 @@ def gradio_interface():
 
                 # Explanation of Bootstrapped Elo Score
                 explanation_text = """
-                The Bootstrapped Elo score is a more robust estimate of the model's performance, 
-                calculated using bootstrapping techniques. This method provides a distribution of 
-                Elo scores by repeatedly sampling the data, which helps in understanding the 
-                variability and confidence in the model's ranking.
+                The Elo score was calculated using bootstrapping with num_rounds=1000. This method provides a 
+                distribution of Elo scores by repeatedly sampling the data, which helps in 
+                understanding the variability and confidence in the model's ranking.
 
-                We used the approach from the Chatbot Arena [rating system code](https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/rating_systems.py).
+                We used the approach from the Chatbot Arena [rating system code](https://github.com/lm-sys/FastChat/blob/main/fastchat/serve/monitor/rating_systems.py#L153).
                 """
                 gr.Markdown(explanation_text)
 

@@ -5,6 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 import pandas as pd
+import numpy as np
 from datasets import load_dataset
 from rating_systems import compute_elo, compute_bootstrap_elo, get_median_elo_from_bootstrap
 
@@ -115,10 +116,17 @@ def compute_elo_scores():
         logging.info("Initial votes count: %d", init_size)
         logging.info("Votes count after validation: %d", df.shape[0])
 
-        elo_scores = compute_elo(df)
+        # Seed the random number generator for reproducibility
+        np.random.seed(42)
+
         bootstrap_elo_scores = compute_bootstrap_elo(df)
         median_elo_scores = get_median_elo_from_bootstrap(bootstrap_elo_scores)
-        return elo_scores, median_elo_scores
+
+        model_rating_q025 = bootstrap_elo_scores.quantile(0.025)
+        model_rating_q975 = bootstrap_elo_scores.quantile(0.975)
+        variance = bootstrap_elo_scores.var()
+
+        return  median_elo_scores, model_rating_q025, model_rating_q975, variance
 
 # Function to compute the number of votes for each model
 def compute_votes_per_model():
