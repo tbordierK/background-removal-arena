@@ -30,7 +30,7 @@ huggingface_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 logging.basicConfig(level=logging.INFO)
 
 # Load datasets and initialize database
-dataset = load_dataset("bgsys/background-removal-arena-green", split='train')
+dataset = load_dataset("bgsys/background-removal-arena-green-v0.1", split='train')
 fill_database_once()
 
 # Directory setup for JSON dataset
@@ -62,7 +62,7 @@ def update_rankings_table():
     model_vote_counts = compute_votes_per_model()
     try:
         # Create a list of models to iterate over
-        models = ["Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
+        models = ["Clipdrop", "Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
         rankings = []
 
         for model in models:
