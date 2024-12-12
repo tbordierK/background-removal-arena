@@ -3,15 +3,17 @@ import argparse
 import shutil
 import sys
 from dotenv import load_dotenv, find_dotenv
+from concurrent.futures import ThreadPoolExecutor
 
 # Importing modules from the utils package
 from utils.resize_images import main as resize_images_main
 from utils.removebg import iterate_over_directory as removebg_iterate
 from utils.photoroom import iterate_over_directory as photoroom_iterate
 from utils.bria_rmbg20 import iterate_over_directory as bria_iterate
+from utils.clipdrop import iterate_over_directory as clipdrop_iterate
 from utils.add_green_background import process_directory as add_green_background_process
 from utils.upload_to_dataset import upload_to_dataset
-from utils.resize_processed_images import process_images
+from utils.resize_processed_images import process_images as downsize_processed_images
 
 def check_env_variables():
     """Check if the necessary environment variables are loaded."""
@@ -20,9 +22,9 @@ def check_env_variables():
     
     load_dotenv()
     
-    required_keys = ['REMOVEBG_API_KEY', 'PHOTOROOM_API_KEY', 'BRIA_API_TOKEN']
+    required_keys = ['REMOVEBG_API_KEY', 'PHOTOROOM_API_KEY', 'BRIA_API_TOKEN', 'CLIPDROP_API_KEY']
     missing_keys = [key for key in required_keys if not os.getenv(key)]
-    
+   
     if missing_keys:
         sys.exit(f"Error: Missing environment variables: {', '.join(missing_keys)}")
 
@@ -84,15 +86,19 @@ def main():
     bg_removal_dirs = {
         "removebg": os.path.join(bg_removed_dir, "removebg"),
         "photoroom": os.path.join(bg_removed_dir, "photoroom"),
-        "bria": os.path.join(bg_removed_dir, "bria")
+        "bria": os.path.join(bg_removed_dir, "bria"),
+        "clipdrop": os.path.join(bg_removed_dir, "clipdrop")
     }
 
     for dir_path in bg_removal_dirs.values():
         os.makedirs(dir_path, exist_ok=True)
 
-    removebg_iterate(input_resized_dir, bg_removal_dirs["removebg"])
-    photoroom_iterate(input_resized_dir, bg_removal_dirs["photoroom"])
-    bria_iterate(input_resized_dir, bg_removal_dirs["bria"])
+    # Use ThreadPoolExecutor to parallelize API calls
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.submit(removebg_iterate, input_resized_dir, bg_removal_dirs["removebg"])
+        executor.submit(photoroom_iterate, input_resized_dir, bg_removal_dirs["photoroom"])
+        executor.submit(bria_iterate, input_resized_dir, bg_removal_dirs["bria"])
+        executor.submit(clipdrop_iterate, input_resized_dir, bg_removal_dirs["clipdrop"])
 
     print("Adding green background...")
     add_green_background_process(bg_removed_dir, green_bg_dir)
@@ -104,10 +110,10 @@ def main():
     for subdir in subdirectories:
         input_directory = os.path.join(green_bg_dir, subdir)
         output_directory = os.path.join(args.output_dir, subdir)
-        process_images(input_directory, output_directory, target_width)
+        downsize_processed_images(input_directory, output_directory, target_width)
     
     original_output_directory = os.path.join(args.output_dir, "web-original-images")
-    process_images(original_images_dir, original_output_directory, target_width)
+    downsize_processed_images(original_images_dir, original_output_directory, target_width)
 
     if args.dataset_name:
         upload_to_dataset(original_output_directory, args.output_dir, args.dataset_name, dry_run=not args.push_dataset)
