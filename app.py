@@ -213,35 +213,6 @@ def gradio_interface():
                 image_width = None
                 image_height = 600  # Limit image height to fit on a standard screen
               
-                with gr.Row(equal_height=True):
-                    def on_enter_contest(username):
-                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
-                        logging.info(feedback_message)
-                        return feedback_message
-                     
-                    with gr.Column(scale=2):
-                        username_input = gr.Textbox(
-                            label="Enter your username (optional)",
-                            placeholder="✨ Enter your username (optional)",
-                            show_label=False,
-                            submit_btn="Enter",
-                            interactive=True
-                        )
-
-                    with gr.Column(scale=3):
-                        feedback_output = gr.Textbox(
-                            label="Feedback",
-                            interactive=False,
-                            show_label=False
-                        )
-
-                    username_input.submit(
-                        fn=on_enter_contest,
-                        inputs=username_input,
-                        outputs=feedback_output
-                    )
-                    
-               
 
                 with gr.Row():
                     # Initialize components with empty states
@@ -334,6 +305,35 @@ def gradio_interface():
 
                     return outputs + [new_notice_markdown]
 
+                with gr.Row(equal_height=True):
+                    def on_enter_contest(username):
+                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
+                        logging.info(feedback_message)
+                        return feedback_message
+                    
+                    with gr.Column(scale=2):
+                        username_input = gr.Textbox(
+                            label="Enter your username (optional)",
+                            placeholder="✨ Enter your username (optional)",
+                            show_label=False,
+                            submit_btn="Enter",
+                            interactive=True
+                        )
+
+                    with gr.Column(scale=3):
+                        feedback_output = gr.Textbox(
+                            label="Feedback",
+                            interactive=False,
+                            show_label=False
+                        )
+
+                    username_input.submit(
+                        fn=on_enter_contest,
+                        inputs=username_input,
+                        outputs=feedback_output
+                    )
+                    
+                            
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 vote_a_button.click(
                     fn=lambda username: vote_for_model("model_a", state_filename, state_model_a_name, state_model_b_name, username),
@@ -360,6 +360,8 @@ def gradio_interface():
                     ]
                 )
             
+               
+
             with gr.Tab("🏆 Leaderboard", id=1) as leaderboard_tab:
                 rankings_table = gr.Dataframe(
                     headers=["Model", "Elo score", "Variance", "95% CI", "Selections"],
