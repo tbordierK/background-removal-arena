@@ -30,7 +30,7 @@ huggingface_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
 logging.basicConfig(level=logging.INFO)
 
 # Load datasets and initialize database
-dataset = load_dataset("bgsys/background-removal-arena-green-v0.1", split='train')
+dataset = load_dataset("bgsys/background-removal-arena-green-v0.2", split='train')
 fill_database_once()
 
 # Directory setup for JSON dataset
