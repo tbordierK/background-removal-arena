@@ -205,7 +205,6 @@ function load_zoom() {
 def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks(js=js, fill_width=True) as demo:
-        gr.Markdown("# Background Removal Arena: Compare & Test the Best Background Removal Models")
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
