@@ -205,12 +205,13 @@ function load_zoom() {
 def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks(js=js, fill_width=True) as demo:
-        gr.Markdown("#Background Removal Arena: Compare & Test the Best Background Removal Models")
+        gr.Markdown("# Background Removal Arena: Compare & Test the Best Background Removal Models")
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 image_width = None
+                image_height = 600  # Limit image height to fit on a standard screen
               
                 with gr.Row(equal_height=True):
                     def on_enter_contest(username):
@@ -247,9 +248,9 @@ def gradio_interface():
                     state_filename = gr.State("")
                     state_model_a_name = gr.State("")
                     state_model_b_name = gr.State("")
-                    image_a = gr.Image(label="Image A", width=image_width)
-                    input_image_display = gr.AnnotatedImage(label="Input Image", width=image_width)
-                    image_b = gr.Image(label="Image B", width=image_width)
+                    image_a = gr.Image(label="Image A", width=image_width, height=image_height)
+                    input_image_display = gr.AnnotatedImage(label="Input Image", width=image_width, height=image_height)
+                    image_b = gr.Image(label="Image B", width=image_width, height=image_height)
 
                     # Refresh states to load new image data
 
@@ -264,11 +265,12 @@ def gradio_interface():
                         state_model_b_name.value = model_b_name
 
                         # Create new gr.Image components with updated values
-                        image_a = gr.Image(value=segmented_a, label="Image A", width=image_width)
-                        image_b = gr.Image(value=segmented_b, label="Image B", width=image_width)
+                        image_a = gr.Image(value=segmented_a, label="Image A", width=image_width, height=image_height)
+                        image_b = gr.Image(value=segmented_b, label="Image B", width=image_width, height=image_height)
                         input_image_display = gr.AnnotatedImage(
                             value=(input_image, [(mask_difference > 0, button_name)]), 
-                            width=image_width
+                            width=image_width,
+                            height=image_height
                         )
                         
                         outputs = [
