@@ -89,7 +89,7 @@ def get_all_votes():
 
 # Function to compute Elo scores
 def compute_elo_scores():
-    valid_models = ["Photoroom", "RemoveBG", "BRIA RMBG 2.0", "Clipdrop"]
+    valid_models = ["Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
     
     with SessionLocal() as db:
         votes = db.query(Vote).all()
