@@ -113,7 +113,7 @@ def main():
         downsize_processed_images(input_directory, output_directory, target_width)
     
     original_output_directory = os.path.join(args.output_dir, "web-original-images")
-    downsize_processed_images(original_images_dir, original_output_directory, target_width)
+    downsize_processed_images(input_resized_dir, original_output_directory, target_width)
 
     if args.dataset_name:
         upload_to_dataset(original_output_directory, args.output_dir, args.dataset_name, dry_run=not args.push_dataset)

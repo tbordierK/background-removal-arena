@@ -4,6 +4,8 @@ import os
 from collections import defaultdict
 import pandas as pd
 import argparse
+from PIL import Image as PILImage
+import sys
 
 def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, dry_run=False):
     # Define the dataset features with dedicated columns for each model
@@ -53,14 +55,32 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
         "original_filename": []
     }
 
+    errors = []
+
     for filename, entry in data.items():
         if "original_image" in entry:
+            # Check if all images have the same size
+            try:
+                original_size = PILImage.open(entry["original_image"]).size
+                for source in ["clipdrop_image", "bria_image", "photoroom_image", "removebg_image"]:
+                    if entry[source] is not None:
+                        processed_size = PILImage.open(entry[source]).size
+                        if processed_size != original_size:
+                            errors.append(f"Size mismatch for {filename}: {source} image size {processed_size} does not match original size {original_size}.")
+            except Exception as e:
+                errors.append(f"Error processing {filename}: {e}")
+
             dataset_dict["original_image"].append(entry["original_image"])
             dataset_dict["clipdrop_image"].append(entry["clipdrop_image"])
             dataset_dict["bria_image"].append(entry["bria_image"])
             dataset_dict["photoroom_image"].append(entry["photoroom_image"])
             dataset_dict["removebg_image"].append(entry["removebg_image"])
             dataset_dict["original_filename"].append(filename)
+
+    if errors:
+        for error in errors:
+            print(error)
+        sys.exit(1)
 
     # Save the data dictionary to a CSV file for inspection
     df = pd.DataFrame.from_dict(dataset_dict)

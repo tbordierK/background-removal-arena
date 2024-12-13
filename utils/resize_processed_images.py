@@ -31,14 +31,13 @@ def resize_image(input_path, output_path, target_width):
     with Image.open(input_path) as img:
         # Correct orientation
         img = correct_orientation(img)
-        
+
         # Calculate the new height to maintain the aspect ratio
         width_percent = target_width / img.width
         target_height = int(img.height * width_percent)
         
         # Resize the image
         img = img.resize((target_width, target_height), Image.LANCZOS)
-        
         # Save the resized image in the same format as the input
         img.save(output_path, format=img.format)
 
