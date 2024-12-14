@@ -25,6 +25,7 @@ from db import (
 # Load environment variables
 load_dotenv()
 huggingface_token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+google_analytics_tracking_id = os.getenv("GOOGLE_ANALYTICS_TRACKING_ID")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -202,9 +203,20 @@ function load_zoom() {
 }
 """
 
+head = """
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id=' + i + dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer', '""" + f"{google_analytics_tracking_id}" + """');</script>
+<!-- End Google Tag Manager -->
+"""
+
+
 def gradio_interface():
     """Create and return the Gradio interface."""
-    with gr.Blocks(js=js, fill_width=True) as demo:
+    with gr.Blocks(js=js, head=head, fill_width=True) as demo:
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
