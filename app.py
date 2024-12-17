@@ -215,7 +215,6 @@ head = """
   gtag('config', '""" + f"{google_analytics_tracking_id}" + """');
 </script>
 """
-print(head)
 
 
 def gradio_interface():
