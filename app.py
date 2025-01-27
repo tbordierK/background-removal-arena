@@ -442,9 +442,7 @@ def gradio_interface():
                     votes = get_all_votes()
                     weekly_votes = [
                         vote for vote in votes 
-                        if vote.timestamp >= start_of_week 
-                        and vote.user_id 
-                        and vote.user_id != "anonymous"
+                        if vote.user_id and vote.user_id != "anonymous"
                     ]
                     user_vote_count = {}
                     for vote in weekly_votes:
@@ -470,8 +468,7 @@ def gradio_interface():
 
                 leaderboard_info = gr.Markdown(
                     value=f"""
-                    This leaderboard shows the ranking of users based on the number of votes they have cast in the current week. The current ranking is based on votes cast from {start_of_week.strftime('%Y-%m-%d')} to {current_time.strftime('%Y-%m-%d')}.
-                    It will be updated each week. 
+                    This leaderboard shows the ranking of users based on the number of votes they have cast since the start of the arena.
                     """
                 )
 
