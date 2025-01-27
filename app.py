@@ -80,6 +80,7 @@ def update_rankings_table():
         return []
     return rankings
 
+
 def select_new_image():
     """Select a new image and its segmented versions."""
     max_attempts = 10
@@ -216,13 +217,56 @@ head = """
 </script>
 """
 
+def get_default_username(profile: gr.OAuthProfile | None) -> str:
+    """
+    Returns the username if the user is logged in, or an empty string if not logged in.
+    """
+    if profile is None:
+        return ""
+    return profile.username
 
 def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks(js=js, head=head, fill_width=True) as demo:
+       
+ 
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
+            with gr.Row(equal_height=True):
+                    def on_enter_contest(username):
+                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
+                        logging.info(feedback_message)
+                        return feedback_message
+
+                    with gr.Column(scale=1):
+                        username_input = gr.Textbox(
+                            label="Enter your username (optional)",
+                            placeholder="✨ Enter your username (optional)",
+                            show_label=False,
+                            submit_btn="Enter",
+                            interactive=True
+                        )
+                    demo.load(fn=get_default_username, inputs=None, outputs=username_input)
+
+
+                    with gr.Column(scale=3):
+                        feedback_output = gr.Textbox(
+                            label="Feedback",
+                            interactive=False,
+                            show_label=False
+                        )
+
+                    with gr.Column(scale=1):
+                         gr.LoginButton()
+                    
+
+                    username_input.submit(
+                        fn=on_enter_contest,
+                        inputs=username_input,
+                        outputs=feedback_output
+                    )
+                    
             with gr.Tab("⚔️ Arena (battle)", id=0):
                 image_width = None
                 image_height = 600  # Limit image height to fit on a standard screen
@@ -318,35 +362,6 @@ def gradio_interface():
                     new_notice_markdown = get_notice_markdown()
 
                     return outputs + [new_notice_markdown]
-
-                with gr.Row(equal_height=True):
-                    def on_enter_contest(username):
-                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
-                        logging.info(feedback_message)
-                        return feedback_message
-                    
-                    with gr.Column(scale=2):
-                        username_input = gr.Textbox(
-                            label="Enter your username (optional)",
-                            placeholder="✨ Enter your username (optional)",
-                            show_label=False,
-                            submit_btn="Enter",
-                            interactive=True
-                        )
-
-                    with gr.Column(scale=3):
-                        feedback_output = gr.Textbox(
-                            label="Feedback",
-                            interactive=False,
-                            show_label=False
-                        )
-
-                    username_input.submit(
-                        fn=on_enter_contest,
-                        inputs=username_input,
-                        outputs=feedback_output
-                    )
-                    
                             
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 vote_a_button.click(
