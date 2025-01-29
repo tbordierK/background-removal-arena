@@ -31,7 +31,7 @@ google_analytics_tracking_id = os.getenv("GOOGLE_ANALYTICS_TRACKING_ID")
 logging.basicConfig(level=logging.INFO)
 
 # Load datasets and initialize database
-dataset = load_dataset("bgsys/background-removal-arena-green-v0.2", split='train')
+dataset = load_dataset("bgsys/background-removal-arena-green_v0_clothing_checkered", split='train')
 fill_database_once()
 
 # Directory setup for JSON dataset
@@ -136,23 +136,20 @@ def get_notice_markdown():
     """
 
 def compute_mask_difference(segmented_a, segmented_b):
-    """Compute the absolute difference between two image masks, ignoring green background."""
-    mask_a = np.asarray(segmented_a)
-    mask_b = np.asarray(segmented_b)
-
-    # Define the green background color
-    green_background = (0, 255, 0, 255)
-
-    # Create a binary mask where non-green and non-transparent pixels are marked as 1
-    mask_a_1d = np.where(
-        (mask_a[..., :3] != green_background[:3]).any(axis=-1) & (mask_a[..., 3] != 0), 1, 0
-    )
-    mask_b_1d = np.where(
-        (mask_b[..., :3] != green_background[:3]).any(axis=-1) & (mask_b[..., 3] != 0), 1, 0
-    )
-
-    # Compute the absolute difference between the masks
-    return np.abs(mask_a_1d - mask_b_1d)
+    """Compute the difference between two images across all channels."""
+    mask_a = np.asarray(segmented_a, dtype=np.float32) / 255.0
+    mask_b = np.asarray(segmented_b, dtype=np.float32) / 255.0
+    
+    # Compute absolute difference across all channels (RGBA)
+    difference = np.abs(mask_a - mask_b)
+    
+    # Take the maximum difference across channels at each pixel
+    max_diff = np.max(difference, axis=-1)
+    
+    # Apply non-linear transformation to enhance visibility of smaller differences
+    # Using square root to compress the range while maintaining continuity
+    # Multiply by 3 to make it more visible
+    return np.sqrt(max_diff) * 3
 
 js = r"""
 function load_zoom() {
@@ -169,7 +166,7 @@ function load_zoom() {
     });
 
     // Choose a scale factor
-    const scale = 2;
+    const scale = 5;
 
     function handleMouseMove(e) {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -297,7 +294,7 @@ def gradio_interface():
                         image_a = gr.Image(value=segmented_a, label="Image A", width=image_width, height=image_height)
                         image_b = gr.Image(value=segmented_b, label="Image B", width=image_width, height=image_height)
                         input_image_display = gr.AnnotatedImage(
-                            value=(input_image, [(mask_difference > 0, button_name)]), 
+                            value=(input_image, [(mask_difference, button_name)]), 
                             width=image_width,
                             height=image_height
                         )
