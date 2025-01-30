@@ -36,7 +36,7 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
     # Walk into the original images folder
     for root, _, files in os.walk(original_images_dir):
         for f in files:
-            if f.endswith(('.png', '.jpg', '.jpeg')):
+            if f.endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 original_image_path = os.path.join(root, f)
                 data[f]["original_image"] = original_image_path
                 data[f]["original_filename"] = f
@@ -50,7 +50,7 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
                         if os.path.exists(source_image_path):
                             data[f][f"{source}_image"] = source_image_path
                             break
-                        
+
     # Convert the data to a dictionary of lists
     dataset_dict = {
         "original_image": [],
