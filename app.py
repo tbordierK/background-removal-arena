@@ -6,6 +6,7 @@ import logging
 import threading
 from pathlib import Path
 from datetime import datetime, timedelta
+from collections import deque
 
 import numpy as np
 import gradio as gr
@@ -80,18 +81,24 @@ def update_rankings_table():
         return []
     return rankings
 
-
-def select_new_image():
+def select_new_image(last_used_indices):
     """Select a new image and its segmented versions."""
     max_attempts = 10
-    last_image_index = None
-
+    
+    # Initialize empty deque if None
+    if last_used_indices is None:
+        last_used_indices = deque(maxlen=10)
+    
     for _ in range(max_attempts):
-        available_indices = [i for i in range(len(dataset)) if i != last_image_index]
+        # Filter out recently used indices
+        available_indices = [
+            i for i in range(len(dataset)) 
+            if i not in last_used_indices
+        ]
         
         if not available_indices:
             logging.error("No available images to select from.")
-            return None
+            return None, last_used_indices
 
         random_index = random.choice(available_indices)
         sample = dataset[random_index]
@@ -102,23 +109,26 @@ def select_new_image():
         
         if segmented_images.count(None) > 2:
             logging.error("Not enough segmented images found for: %s. Resampling another image.", sample['original_filename'])
-            last_image_index = random_index
             continue
 
         try:
             selected_indices = random.sample([i for i, img in enumerate(segmented_images) if img is not None], 2)
             model_a_index, model_b_index = selected_indices
+            
+            # Add the used index to our history
+            last_used_indices.append(random_index)
+            
             return (
-                sample['original_filename'], input_image,
+                (sample['original_filename'], input_image,
                 segmented_images[model_a_index], segmented_images[model_b_index],
-                segmented_sources[model_a_index], segmented_sources[model_b_index]
+                segmented_sources[model_a_index], segmented_sources[model_b_index]),
+                last_used_indices
             )
         except Exception as e:
             logging.error("Error processing images: %s. Resampling another image.", str(e))
-            last_image_index = random_index
 
     logging.error("Failed to select a new image after %d attempts.", max_attempts)
-    return None
+    return None, last_used_indices
 
 def get_notice_markdown():
     """Generate the notice markdown with dynamic vote count."""
@@ -225,8 +235,9 @@ def get_default_username(profile: gr.OAuthProfile | None) -> str:
 def gradio_interface():
     """Create and return the Gradio interface."""
     with gr.Blocks(js=js, head=head, fill_width=True) as demo:
-       
- 
+        # Initialize session state for last used indices
+        last_used_indices_state = gr.State()
+        
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
@@ -278,11 +289,14 @@ def gradio_interface():
                     input_image_display = gr.AnnotatedImage(label="Input Image", width=image_width, height=image_height)
                     image_b = gr.Image(label="Image B", width=image_width, height=image_height)
 
-                    # Refresh states to load new image data
-
-                    def refresh_states(state_filename, state_model_a_name, state_model_b_name):
+                    def refresh_states(state_filename, state_model_a_name, state_model_b_name, last_used_indices):
                         # Call select_new_image to get new image data
-                        filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = select_new_image()
+                        result, new_last_used_indices = select_new_image(last_used_indices)
+                        if result is None:
+                            return [state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                                   input_image_display, new_last_used_indices]
+                            
+                        filename, input_image, segmented_a, segmented_b, model_a_name, model_b_name = result
                         mask_difference = compute_mask_difference(segmented_a, segmented_b)
                         
                         # Update states with new data
@@ -299,11 +313,10 @@ def gradio_interface():
                             height=image_height
                         )
                         
-                        outputs = [
+                        return [
                             state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                            input_image_display
+                            input_image_display, new_last_used_indices
                         ]
-                        return outputs
 
                     
                 with gr.Row():
@@ -311,7 +324,7 @@ def gradio_interface():
                     vote_tie_button = gr.Button("🤝  Tie")
                     vote_b_button = gr.Button("👉  B is better")
 
-                def vote_for_model(choice, original_filename, model_a_name, model_b_name, user_username):
+                def vote_for_model(choice, original_filename, model_a_name, model_b_name, user_username, last_used_indices):
                     """Submit a vote for a model and return updated images and model names."""
                   
 
@@ -355,34 +368,40 @@ def gradio_interface():
                     except Exception as e:
                         logging.error("Error recording vote: %s", str(e))
 
-                    outputs = refresh_states(state_filename, state_model_a_name, state_model_b_name)
+                    outputs = refresh_states(state_filename, state_model_a_name, state_model_b_name, last_used_indices)
                     new_notice_markdown = get_notice_markdown()
 
                     return outputs + [new_notice_markdown]
                             
                 notice_markdown = gr.Markdown(get_notice_markdown(), elem_id="notice_markdown")
                 vote_a_button.click(
-                    fn=lambda username: vote_for_model("model_a", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=[username_input],
+                    fn=lambda username, last_used_indices: vote_for_model(
+                        "model_a", state_filename, state_model_a_name, state_model_b_name, username, last_used_indices
+                    ),
+                    inputs=[username_input, last_used_indices_state],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, notice_markdown
+                        input_image_display, last_used_indices_state, notice_markdown
                     ]
                 )
                 vote_b_button.click(
-                    fn=lambda username: vote_for_model("model_b", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=[username_input],
+                    fn=lambda username, last_used_indices: vote_for_model(
+                        "model_b", state_filename, state_model_a_name, state_model_b_name, username, last_used_indices
+                    ),
+                    inputs=[username_input, last_used_indices_state],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, notice_markdown
+                        input_image_display, last_used_indices_state, notice_markdown
                     ]
                 )
                 vote_tie_button.click(
-                    fn=lambda username: vote_for_model("tie", state_filename, state_model_a_name, state_model_b_name, username),
-                    inputs=[username_input],
+                    fn=lambda username, last_used_indices: vote_for_model(
+                        "tie", state_filename, state_model_a_name, state_model_b_name, username, last_used_indices
+                    ),
+                    inputs=[username_input, last_used_indices_state],
                     outputs=[
                         state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
-                        input_image_display, notice_markdown
+                        input_image_display, last_used_indices_state, notice_markdown
                     ]
                 )
             
@@ -473,7 +492,14 @@ def gradio_interface():
                     fn=lambda: get_weekly_user_leaderboard(),
                     outputs=user_leaderboard_table
                 )
-        demo.load(lambda: refresh_states(state_filename, state_model_a_name, state_model_b_name), inputs=None, outputs=[state_filename, image_a, image_b, state_model_a_name, state_model_b_name, input_image_display])
+        demo.load(
+            lambda: refresh_states(state_filename, state_model_a_name, state_model_b_name, None), 
+            inputs=None, 
+            outputs=[
+                state_filename, image_a, image_b, state_model_a_name, state_model_b_name, 
+                input_image_display, last_used_indices_state
+            ]
+        )
     return demo
 
 def dump_database_to_json():
