@@ -14,6 +14,7 @@ from utils.clipdrop import iterate_over_directory as clipdrop_iterate
 from utils.upload_to_dataset import upload_to_dataset
 from utils.resize_processed_images import process_images as downsize_processed_images
 from utils.add_checkered_background import process_directory as add_checkered_background_process
+from utils.birefnet import process_directory as birefnet_iterate
 
 def check_env_variables():
     """Check if the necessary environment variables are loaded."""
@@ -22,7 +23,11 @@ def check_env_variables():
     
     load_dotenv()
     
-    required_keys = ['REMOVEBG_API_KEY', 'PHOTOROOM_API_KEY', 'BRIA_API_TOKEN', 'CLIPDROP_API_KEY']
+    required_keys = [
+        'REMOVEBG_API_KEY', 'PHOTOROOM_API_KEY', 
+        'BRIA_API_TOKEN', 'CLIPDROP_API_KEY',
+        'FAL_KEY'
+    ]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
    
     if missing_keys:
@@ -86,23 +91,23 @@ def main():
         "removebg": os.path.join(bg_removed_dir, "removebg"),
         "photoroom": os.path.join(bg_removed_dir, "photoroom"),
         "bria": os.path.join(bg_removed_dir, "bria"),
-        "clipdrop": os.path.join(bg_removed_dir, "clipdrop")
+        "clipdrop": os.path.join(bg_removed_dir, "clipdrop"),
+        "birefnet": os.path.join(bg_removed_dir, "birefnet")
     }
 
     for dir_path in bg_removal_dirs.values():
         os.makedirs(dir_path, exist_ok=True)
 
     # Use ThreadPoolExecutor to parallelize API calls
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=5) as executor:
         executor.submit(removebg_iterate, input_resized_dir, bg_removal_dirs["removebg"])
         executor.submit(photoroom_iterate, input_resized_dir, bg_removal_dirs["photoroom"])
         executor.submit(bria_iterate, input_resized_dir, bg_removal_dirs["bria"])
         executor.submit(clipdrop_iterate, input_resized_dir, bg_removal_dirs["clipdrop"])
-
+        executor.submit(birefnet_iterate, input_resized_dir, bg_removal_dirs["birefnet"])
 
     print("Adding checkered background...")
     add_checkered_background_process(bg_removed_dir, checkered_bg_dir)
-
 
     if args.dataset_name:
         upload_to_dataset(input_resized_dir, checkered_bg_dir, args.dataset_name, dry_run=not args.push_dataset)

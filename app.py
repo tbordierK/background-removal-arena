@@ -22,6 +22,7 @@ from db import (
     fill_database_once,
     compute_votes_per_model
 )
+from utils.birefnet import iterate_over_directory as birefnet_iterate
 
 # Load environment variables
 load_dotenv()
@@ -32,7 +33,7 @@ google_analytics_tracking_id = os.getenv("GOOGLE_ANALYTICS_TRACKING_ID")
 logging.basicConfig(level=logging.INFO)
 
 # Load datasets and initialize database
-dataset = load_dataset("bgsys/background-removal-arena-green_v0_clothing_checkered", split='train')
+dataset = load_dataset("bgsys/background-removal-arena_v0_clothing_checkered", split='train')
 fill_database_once()
 
 # Directory setup for JSON dataset
@@ -64,7 +65,7 @@ def update_rankings_table():
     model_vote_counts = compute_votes_per_model()
     try:
         # Create a list of models to iterate over
-        models = ["Clipdrop", "Photoroom", "RemoveBG", "BRIA RMBG 2.0"]
+        models = ["Clipdrop", "Photoroom", "RemoveBG", "BRIA RMBG 2.0", "BiRefNet v2"]
         rankings = []
 
         for model in models:
@@ -104,8 +105,14 @@ def select_new_image(last_used_indices):
         sample = dataset[random_index]
         input_image = sample['original_image']
 
-        segmented_images = [sample.get(key) for key in ['clipdrop_image', 'bria_image', 'photoroom_image', 'removebg_image']]
-        segmented_sources = ['Clipdrop', 'BRIA RMBG 2.0', 'Photoroom', 'RemoveBG']
+        segmented_images = [sample.get(key) for key in [
+            'clipdrop_image', 'bria_image', 'photoroom_image', 
+            'removebg_image', 'birefnet_image'
+        ]]
+        segmented_sources = [
+            'Clipdrop', 'BRIA RMBG 2.0', 'Photoroom', 
+            'RemoveBG', 'BiRefNet v2'
+        ]
         
         if segmented_images.count(None) > 2:
             logging.error("Not enough segmented images found for: %s. Resampling another image.", sample['original_filename'])

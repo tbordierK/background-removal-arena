@@ -6,16 +6,22 @@ import pandas as pd
 import argparse
 from PIL import Image as PILImage
 import sys
+import logging
 
 def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, dry_run=False):
+    """Upload images to a Hugging Face dataset including BiRefNet results."""
+    
+    logging.info(f"Starting dataset upload from {original_images_dir}")
+    
     # Define the dataset features with dedicated columns for each model
     features = Features({
-        "original_image": Image(),  # Original image feature
-        "clipdrop_image": Image(),  # Clipdrop segmented image
-        "bria_image": Image(),      # Bria segmented image
-        "photoroom_image": Image(), # Photoroom segmented image
-        "removebg_image": Image(),  # RemoveBG segmented image
-        "original_filename": Value("string")  # Original filename
+        "original_image": Image(),
+        "clipdrop_image": Image(),
+        "bria_image": Image(),
+        "photoroom_image": Image(),
+        "removebg_image": Image(),
+        "birefnet_image": Image(),
+        "original_filename": Value("string")
     })
 
     # Load image paths and metadata
@@ -23,7 +29,8 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
         "clipdrop_image": None,
         "bria_image": None,
         "photoroom_image": None,
-        "removebg_image": None
+        "removebg_image": None,
+        "birefnet_image": None
     })
 
     # Walk into the original images folder
@@ -35,16 +42,15 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
                 data[f]["original_filename"] = f
 
                 # Check for corresponding images in processed directories
-                for source in ["clipdrop", "bria", "photoroom", "removebg"]:
-                    # Check for processed images ending in .png or .jpg
-                    for ext in ['.png', '.jpg']:
+                for source in ["clipdrop", "bria", "photoroom", "removebg", "birefnet"]:
+                    for ext in ['.png', '.jpg', '.jpeg', '.webp']:
                         processed_image_filename = os.path.splitext(f)[0] + ext
                         source_image_path = os.path.join(processed_images_dir, source, processed_image_filename)
         
                         if os.path.exists(source_image_path):
                             data[f][f"{source}_image"] = source_image_path
-                            break  # Stop checking other extensions if a file is found
-
+                            break
+                        
     # Convert the data to a dictionary of lists
     dataset_dict = {
         "original_image": [],
@@ -52,35 +58,47 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
         "bria_image": [],
         "photoroom_image": [],
         "removebg_image": [],
+        "birefnet_image": [],
         "original_filename": []
     }
 
     errors = []
+    processed_count = 0
+    skipped_count = 0
 
     for filename, entry in data.items():
         if "original_image" in entry:
-            # Check if all images have the same size
             try:
                 original_size = PILImage.open(entry["original_image"]).size
-                for source in ["clipdrop_image", "bria_image", "photoroom_image", "removebg_image"]:
-                    if entry[source] is not None:
-                        processed_size = PILImage.open(entry[source]).size
-                        if processed_size != original_size:
-                            errors.append(f"Size mismatch for {filename}: {source} image size {processed_size} does not match original size {original_size}.")
-            except Exception as e:
-                errors.append(f"Error processing {filename}: {e}")
+                valid_entry = True
 
-            dataset_dict["original_image"].append(entry["original_image"])
-            dataset_dict["clipdrop_image"].append(entry["clipdrop_image"])
-            dataset_dict["bria_image"].append(entry["bria_image"])
-            dataset_dict["photoroom_image"].append(entry["photoroom_image"])
-            dataset_dict["removebg_image"].append(entry["removebg_image"])
-            dataset_dict["original_filename"].append(filename)
+                for source in ["clipdrop_image", "bria_image", "photoroom_image", "removebg_image", "birefnet_image"]:
+                    if entry[source] is not None:
+                        try:
+                            processed_size = PILImage.open(entry[source]).size
+                            if processed_size != original_size:
+                                errors.append(f"Size mismatch for {filename}: {source}")
+                                valid_entry = False
+                        except Exception as e:
+                            errors.append(f"Error with {filename}: {source}")
+                            valid_entry = False
+
+                if valid_entry:
+                    for key in dataset_dict.keys():
+                        if key in entry:
+                            dataset_dict[key].append(entry[key])
+                    processed_count += 1
+                else:
+                    skipped_count += 1
+
+            except Exception as e:
+                errors.append(f"Error processing {filename}")
+                skipped_count += 1
 
     if errors:
-        for error in errors:
-            print(error)
-        sys.exit(1)
+        logging.warning(f"Encountered {len(errors)} errors during processing")
+
+    logging.info(f"Processed: {processed_count}, Skipped: {skipped_count}, Total: {processed_count + skipped_count}")
 
     # Save the data dictionary to a CSV file for inspection
     df = pd.DataFrame.from_dict(dataset_dict)
@@ -90,14 +108,20 @@ def upload_to_dataset(original_images_dir, processed_images_dir, dataset_name, d
     dataset = Dataset.from_dict(dataset_dict, features=features)
 
     if dry_run:
-        print("Dry run: Dataset prepared but not pushed to Hugging Face Hub.")
-        print(df.head())  # Display the first few rows for inspection
+        logging.info("Dry run completed - dataset not pushed")
     else:
-        # Push the dataset to Hugging Face Hub in a private way
+        logging.info(f"Pushing dataset to {dataset_name}")
         api = HfApi()
         dataset.push_to_hub(dataset_name, token=api.token, private=True)
+        logging.info("Upload completed successfully")
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
     parser = argparse.ArgumentParser(description="Upload images to a Hugging Face dataset.")
     parser.add_argument("original_images_dir", type=str, help="Directory containing the original images.")
     parser.add_argument("processed_images_dir", type=str, help="Directory containing the processed images with subfolders for each model.")
