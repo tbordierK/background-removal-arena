@@ -24,7 +24,7 @@ async def remove_background_birefnet(image_path: str) -> Optional[str]:
             arguments={
                 "image_url": image_path,
                 "model": "General Use (Heavy)",
-                "operating_resolution": "2048x2048",
+                "operating_resolution": "1024x1024",
                 "output_format": "png",
                 "refine_foreground": True
             }

@@ -63,7 +63,7 @@ def process_directory(input_dir, output_dir, square_size=20):
     with ThreadPoolExecutor() as executor:
         for root, _, files in os.walk(input_dir):
             for file in files:
-                if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                     input_path = os.path.join(root, file)
                     relative_path = os.path.relpath(input_path, input_dir)
                     output_path = os.path.join(output_dir, os.path.splitext(relative_path)[0] + '.png')
