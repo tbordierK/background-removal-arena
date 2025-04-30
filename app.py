@@ -142,7 +142,7 @@ def get_notice_markdown():
     total_votes = len(get_all_votes())
     return f"""
 
-    ## 📜 How It Works
+    ## 📜 How It Works ! 
     - **Blind Test**: You will see two images with their background removed from two anonymous background removal models (Clipdrop, RemoveBG, Photoroom, BRIA RMBG 2.0).
     - **Vote for the Best**: Choose the best result, if none stand out choose "Tie". 
 
