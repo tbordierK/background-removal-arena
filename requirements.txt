@@ -12,3 +12,4 @@ pandas==2.2.3
 datasets==3.1.0
 scipy==1.14.1
 fal_client==0.5.8
+gradio-client==1.11.0
