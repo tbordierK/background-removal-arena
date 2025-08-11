@@ -248,12 +248,13 @@ def gradio_interface():
         button_name = "Difference between masks"
 
         with gr.Tabs() as tabs:
-            with gr.Row(equal_height=True):
-                    def on_enter_contest(username):
-                        feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
-                        logging.info(feedback_message)
-                        return feedback_message
+            with gr.Tab("⚔️ Arena (battle)", id=0):
+                def on_enter_contest(username):
+                    feedback_message = f"Thank you, {username or 'anonymous'}! You can see how you rank in the Hall of Fame."
+                    logging.info(feedback_message)
+                    return feedback_message
 
+                with gr.Row(equal_height=True):
                     with gr.Column(scale=1):
                         username_input = gr.Textbox(
                             label="Enter your username (optional)",
@@ -263,7 +264,6 @@ def gradio_interface():
                             interactive=True
                         )
                     demo.load(fn=get_default_username, inputs=None, outputs=username_input)
-
 
                     with gr.Column(scale=3):
                         feedback_output = gr.Textbox(
@@ -276,13 +276,11 @@ def gradio_interface():
                          gr.LoginButton()
                     
 
-                    username_input.submit(
-                        fn=on_enter_contest,
-                        inputs=username_input,
-                        outputs=feedback_output
-                    )
-                    
-            with gr.Tab("⚔️ Arena (battle)", id=0):
+                username_input.submit(
+                    fn=on_enter_contest,
+                    inputs=username_input,
+                    outputs=feedback_output
+                )
                 image_width = None
                 image_height = 600  # Limit image height to fit on a standard screen
               
