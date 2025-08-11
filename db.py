@@ -48,7 +48,13 @@ def fill_database_once(dataset_name="bgsys/votes_datasets_test2"):
     with SessionLocal() as db:
         # Check if the database is already filled
         if db.query(Vote).first() is None:
-            dataset = load_dataset(dataset_name)
+            try:
+                dataset = load_dataset(dataset_name)
+                logging.info("Successfully loaded Hub dataset %s with %d records.", dataset_name, len(dataset['train']))
+            except Exception:
+                logging.exception("Failed to load Hub dataset %s. Starting with empty local database.", dataset_name)
+                return
+
             for record in dataset['train']:
                 # Ensure the timestamp is a string
                 timestamp_str = record.get("timestamp", datetime.utcnow().isoformat())
@@ -68,7 +74,7 @@ def fill_database_once(dataset_name="bgsys/votes_datasets_test2"):
                 db_vote = Vote(**vote_data)
                 db.add(db_vote)
             db.commit()
-            logging.info("Database filled with data from Hugging Face dataset: %s", dataset_name)
+            logging.info("Database filled with %d records from Hugging Face dataset: %s", len(dataset['train']), dataset_name)
         else:
             logging.info("Database already filled, skipping dataset loading.")
 

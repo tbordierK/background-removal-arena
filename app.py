@@ -514,6 +514,7 @@ def dump_database_to_json():
         return
 
     votes = get_all_votes()
+    logging.info("Preparing to dump %d votes to JSON", len(votes))
     json_data = [
         {
             "id": vote.id,
@@ -528,10 +529,17 @@ def dump_database_to_json():
     ]
 
     json_file_path = JSON_DATASET_DIR / "votes.json"
-    # Upload to Hugging Face
+    json_temp_path = JSON_DATASET_DIR / "votes.json.tmp"
+    
+    # Upload to Hugging Face with atomic writes
     with commit_scheduler.lock:
-        with json_file_path.open("w") as f:
-            json.dump(json_data, f, indent=4)
+        # Write to temporary file first
+        with json_temp_path.open("w") as f:
+            json.dump(json_data, f)
+        # Atomically replace the target file
+        os.replace(json_temp_path, json_file_path)
+    file_size = json_file_path.stat().st_size
+    logging.info("JSON dump succeeded; new file size is %d bytes", file_size)
 
     logging.info("Database dumped to JSON")
 
@@ -556,7 +564,7 @@ def schedule_dump_database(interval=60):
 
 
 if __name__ == "__main__":
-    schedule_dump_database()  # Start the periodic database dump
+    schedule_dump_database(3600)  # Start the periodic database dump
     demo = gradio_interface()
 
     demo.launch()
