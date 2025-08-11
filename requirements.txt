@@ -1,5 +1,6 @@
 certifi==2024.8.30
 fastapi==0.115.4
+gradio[oauth]==5.23.2
 numpy==2.0.2
 pandas==2.2.3
 pillow==11.0.0
@@ -7,7 +8,6 @@ python-dotenv==1.0.1
 requests==2.32.3
 SQLAlchemy==2.0.36
 uvicorn==0.30.1
-pandas==2.2.3
 datasets==3.1.0
 scipy==1.14.1
 fal_client==0.5.8
