@@ -69,7 +69,7 @@ def fill_database_once(dataset_name="bgsys/votes_datasets_test2"):
                     "user_id": record.get("user_id", ""),
                     "fpath_a": record.get("fpath_a", ""),
                     "fpath_b": record.get("fpath_b", ""),
-                    "timestamp": datetime.fromisoformat(timestamp_str)
+                    "timestamp": datetime.fromisoformat(timestamp_str[:26])
                 }
                 db_vote = Vote(**vote_data)
                 db.add(db_vote)
